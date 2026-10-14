@@ -322,3 +322,79 @@ LSL 相关测试若在受限网络环境下发现不了流会自动跳过（并�
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+# 在新电脑上部署（Fresh machine setup）
+
+## 0. 前提条件
+
+| 需要 | 说明 |
+|------|------|
+| **Windows 10/11** | DPI 执行侧依赖 Raw Accel（Windows 驱动）→ macOS / Linux / iOS 无法运行这一半 |
+| **Python 3.11+** | 本仓库验证版本 **3.14.4**；安装时**必须勾选 `tcl/tk`**，否则界面报 `No module named tkinter` |
+| **OpenSignals**（PLUX） | 商业软件，需单独安装与授权，**不在本仓库内** |
+| **Raw Accel** + 驱动 | 单独安装，**不在本仓库内** |
+| **硬件** | BITalino + 4 路 EMG 传感器（EMGBITREV）+ 蓝牙配对；鼠标硬件 DPI 设 **800**、accel 关闭 |
+
+## 1. 取得代码并安装依赖
+
+```powershell
+git clone https://github.com/fuseiketsu-hub/LSL-plugin.git
+cd LSL-plugin
+pip install -r requirements.txt      # numpy / scipy / pylsl / matplotlib
+```
+
+## 2. 三步自检（任何一步失败，先别做实验）
+
+```powershell
+python -m lsl_apdf selftest        # 算法 + 环境
+python plugin\main.py --check      # 插件自检，应 85 + 114 全通过
+python -m lsl_apdf list --wait 5   # 能否看到 OpenSignals 流（需先在 OpenSignals 点录制）
+```
+
+界面方式：双击 `启动统一界面.bat`（无命令框；排错用 `启动统一界面_带控制台.bat`）。
+
+## 3. Raw Accel 装在哪
+
+`plugin/rawaccel_bridge.py` 会**自动探测**这些位置，装在其中之一无需配置：
+
+```
+%USERPROFILE%\Desktop\RawAccel        %USERPROFILE%\Desktop\rawaccel
+C:\Program Files\Raw Accel            C:\Program Files (x86)\Raw Accel
+%LOCALAPPDATA%\Raw Accel              %LOCALAPPDATA%\Programs\Raw Accel
+```
+
+装在别处时，把 `plugin/config.json` 的 `rawaccel.install_dir` 改成你的路径。
+
+## 4. ⚠️ 必须从仓库根目录运行
+
+`plugin_dir` 是**相对路径** `plugin`（为了避免硬编码个人绝对路径）。在其它目录下运行会找不到插件模块。
+
+## 5. ⚠️ 两处不同的 DRY-RUN 默认值（安全相关）
+
+| 入口 | 默认 | 说明 |
+|------|------|------|
+| 统一界面 / `python -m lsl_apdf unified` | **DRY-RUN** | 默认不写驱动，需手动勾选才会真写 |
+| 插件自带 GUI（`启动图形界面.bat`） | **真实写入** | `plugin/config.json` 里 `rawaccel.dry_run = false` |
+
+**第一次上手请用统一界面**，确认无误后再考虑插件自带 GUI。
+
+## 6. 实验前还必须完成（与电脑无关）
+
+1. **方向验证试跑** —— 唯一会让整场实验作废的前置条件：
+   固定 800 DPI 跑 ≥15 min、固定 1200 DPI 跑 ≥15 min，比较两块肌肉的 P50 是否按预期方向转移。
+2. **MVC 必须重新测并输入** —— `session_config_real.json` 里的值是**某个被试**的，
+   换人 / 换电脑都要重测。MVC 口径必须与本链路的滤波后 RMS 一致（ADC 码，`adc_scale=1`）。
+3. **通道映射与实际接线核对** —— 单独用力某块肌肉，界面上应只有那一块上升。
+4. **Jonsson 参考限值核对原文**（代码中现为 5 / 14 / 70 %MVC，标注"需核对"）。
+
+## 7. 常见问题
+
+| 症状 | 原因 / 处理 |
+|------|-----------|
+| `No module named tkinter` | 重装 Python 并勾选 `tcl/tk`；或用命令行模式（`run` / `calibrate` / `apdf`） |
+| 找不到 `emg_server` / `rawaccel_bridge` | 不在仓库根目录运行 —— 见第 4 节 |
+| 刷新后没有 LSL 流 | OpenSignals 里勾选 `Settings → INTEGRATIONS → Lab Streaming Layer`，并**点红色录制按钮**（不录制不发流） |
+| 界面数字乱跳 / %MVC 异常 | MVC 口径不一致（本链路是**滤波后 RMS**，ADC 码）；见第 6 节第 2 条 |
+| 打开没反应（无窗口） | 用 `启动统一界面_带控制台.bat` 看报错，或读 `lsl_apdf/last_crash.log` |
