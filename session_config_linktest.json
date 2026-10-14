@@ -1,0 +1,72 @@
+{
+  "_说明": "演示用：时间常数缩小 + MVC=1000（与内置合成源/模拟流的量级一致）。正式实验用 session_config_example.json。",
+  "plugin_dir": "..\\插件\\plugin",
+  "channels": "A1=ECU,A2=FDS,A3=UT,A4=EDC",
+  "mvc": {
+    "ECU": 1000.0,
+    "FDS": 1000.0,
+    "UT": 1000.0,
+    "EDC": 1000.0
+  },
+  "pair": [
+    "ECU",
+    "FDS"
+  ],
+  "direction": {
+    "ECU": "up",
+    "UT": "up",
+    "FDS": "down",
+    "EDC": "down"
+  },
+  "high_thr": 20.0,
+  "roll_window_sec": 20.0,
+  "baseline_sec": 20.0,
+  "deadband": 0.15,
+  "deadband_abs_mvc": 2.0,
+  "confirm_sec": 5.0,
+  "settle_sec": 5.0,
+  "safety_mvc": 40.0,
+  "dry_run": true,
+  "switch_ramp_sec": 10.0,
+  "levels": {
+    "low": {
+      "dpi": 800,
+      "sens": 1.0
+    },
+    "high": {
+      "dpi": 1200,
+      "sens": 1.5
+    }
+  },
+  "host": "127.0.0.1",
+  "port": 9000,
+  "send_hz": 2.0,
+  "duration": null,
+  "report_sec": 8.0,
+  "out_dir": "sessions",
+  "subject_id": "",
+  "launch_plugin": true,
+  "stop_grace_sec": 8.0,
+  "stream": {
+    "name": "OpenSignals",
+    "type": "",
+    "hostname": "",
+    "resolve_timeout": 10.0,
+    "max_buflen": 3600,
+    "recover": true
+  },
+  "signal": {
+    "channel": 1,
+    "adc_scale": 1.0,
+    "adc_offset": 0.0,
+    "unit_label": "mV",
+    "highpass_hz": 20.0,
+    "lowpass_hz": 450.0,
+    "notch_hz": 50.0,
+    "notch_q": 30.0,
+    "filter_order": 4,
+    "rms_window_sec": 0.125,
+    "rms_hop_sec": 0.0625,
+    "startup_skip_sec": 0.5
+  }
+}

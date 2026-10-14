@@ -1,0 +1,18 @@
+# lsl_apdf 运行依赖
+# 安装：pip install -r requirements.txt
+#
+# 说明：
+#   numpy / scipy   —— 滤波与 RMS，APDF 统计（必需）
+#   pylsl           —— 接收 OpenSignals 的 LSL 流（必需；缺失时只能用合成/回放源）
+#   matplotlib      —— 实时曲线与 APDF 出图（必需）
+#   tkinter         —— 实时界面，随 Python 官方安装包自带，不需要 pip 安装
+#                       若报 "No module named tkinter"，请重装 Python 并勾选 tcl/tk，
+#                       或用命令行模式（run / calibrate / apdf）代替界面
+
+numpy>=1.24
+scipy>=1.10
+pylsl>=1.16
+matplotlib>=3.7
+
+# 开发/测试（可选）：测试全部基于标准库 unittest，无需额外依赖
+# pytest>=7.0

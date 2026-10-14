@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 运行产物（会话数据 —— 绝不上传）
+sessions/
+sessions_*/
+exports/
+demo_exports/
+*.log
+lsl_apdf/last_crash.log
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 本地覆盖配置（放个人路径、被试信息）
+session_config_local*.json
+
+# 调试残留
+mk.txt
+mke.txt
+
+# 含本地数据路径的诊断脚本（仅本地使用）
+check_opensignals_filtering.py
+check_exposure_trend.py
+
+# 与软件无关的组会材料
+make_groupmeeting_ppt*.py
+make_system_diagram.py
+make_filter_demo_figure.py
+
+# 第三方文档（版权，改放官方链接）
+OpenSignals_LSL使用说明.md
