@@ -1,0 +1,8 @@
+__pycache__/
+logs/
+ui_state.json
+*.log
+*_err.txt
+*_out.txt
+lt.txt
+lte.txt

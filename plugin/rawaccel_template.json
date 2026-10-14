@@ -1,0 +1,22 @@
+{
+  "_comment": "Raw Accel 写入模板（v1.6.x GUI settings 格式）。程序只会改写其中的 sens 与 accel_mode 字段，其余保持模板原值。若你安装的 Raw Accel 版本 JSON 结构不同（如 v1.7+ 的嵌套 linear/natural 格式），请用 'python main.py --dump-template' 抓取本机当前设置并替换此文件。accel_mode 必须为 off（实验要求加速关闭）。",
+  "whole": true,
+  "sens": 1.0,
+  "y/x": 1.0,
+  "rotation": 0.0,
+  "degrees": 10.0,
+  "degrees-smooth": false,
+  "accel_mode": "off",
+  "cap_mode": "output",
+  "cap": {"x": 40.0, "y": 40.0},
+  "cap_scale": true,
+  "weight": 0.0,
+  "offset": 0.0,
+  "scale": 1.0,
+  "domain": {"x": 0.0, "y": 0.0},
+  "range": {"x": 1.0, "y": 1.0},
+  "lp_norm": 2.0,
+  "gain": true,
+  "legacy": false,
+  "preserve_cap": true
+}

@@ -1,0 +1,112 @@
+{
+  "ui": {"lang": "en"},
+
+  "mouse": {
+    "base_dpi": 800,
+    "levels": {
+      "low":  {"dpi": 800,  "sens": 1.0},
+      "high": {"dpi": 1200, "sens": 1.5}
+    }
+  },
+
+  "rawaccel": {
+    "interface": "auto",
+    "install_dir": "%USERPROFILE%\\Desktop\\RawAccel",
+    "exe_path": "",
+    "template_file_v17": "rawaccel_template_v17.json",
+    "template_file": "rawaccel_template.json",
+    "dry_run": false,
+    "verify_with_print": false
+  },
+
+  "log_dir": "logs",
+  "session_cap_sec": 7200,
+  "tick_sec": 1.0,
+  "time_scale": 1.0,
+
+  "time_mode": {
+    "pattern_dpi": [800, 800, 1200, 1200],
+    "block_sec": 1800,
+    "repeats": 1,
+    "ramp": {"sec": 300, "placement": "lead_in"}
+  },
+
+  "fixed_mode": {"dpi": 800},
+
+  "manual_mode": {"ramp_sec": 300},
+
+  "emg": {
+    "host": "127.0.0.1",
+    "port": 9000,
+    "protocol": "text",
+    "policy": "threshold",
+    "window_sec": 10.0,
+    "hold_sec": 5.0,
+    "min_dwell_sec": 60.0,
+    "hysteresis_mvc": 2.0,
+    "switch_ramp_sec": 300.0,
+
+    "thresholds": {
+      "up":   {"ECU": 16.0, "UT": null},
+      "down": {"FDS": 20.0}
+    },
+
+    "crossover": {
+      "margin_mvc": 1.5,
+      "muscles": ["EDC", "ECU", "FDS", "UT"],
+      "reference": {
+        "800":  {"EDC": 11.0, "ECU": 12.0, "FDS": 11.0, "UT": 8.0},
+        "1200": {"EDC": 12.0, "ECU": 9.0,  "FDS": 15.0, "UT": 5.0}
+      }
+    },
+
+    "balance": {
+      "_comment": "负荷交替法（v2）：比较两块肌肉各自的高暴露区域，谁相对自己基线更严重就把 DPI 往卸载它的方向切。切换次数不预设，由两者的交替结果决定。",
+      "pair": ["ECU", "FDS"],
+      "direction": {"ECU": "up", "UT": "up", "FDS": "down", "EDC": "down"},
+      "high_thr": 20.0,
+      "roll_window_sec": 300.0,
+      "baseline_sec": 300.0,
+      "floor_mvc": 1.0,
+      "deadband": 0.15,
+      "deadband_abs_mvc": 2.0,
+      "confirm_sec": 30.0,
+      "settle_sec": 120.0,
+      "safety_mvc": 40.0,
+      "event_log": "logs/balance_events.csv"
+    },
+
+    "opensignals": {
+      "n_channels": 4,
+      "sampling_rate": 1000,
+      "channels": ["EDC", "ECU", "FDS", "UT"],
+      "adc_to_mvc": {
+        "EDC": {"offset": 0.0, "scale": 0.001},
+        "ECU": {"offset": 0.0, "scale": 0.001},
+        "FDS": {"offset": 0.0, "scale": 0.001},
+        "UT":  {"offset": 0.0, "scale": 0.001}
+      }
+    },
+
+    "demo": {
+      "up_rate_mvc_per_s": 0.25,
+      "down_rate_mvc_per_s": 0.15,
+      "noise_mvc": 0.3,
+      "interval_sim_sec": 0.5
+    },
+
+    "demo_balance": {
+      "_comment": "balance 策略专用演示参数：两块肌肉在各自档位都要能超过 high_thr(20%MVC)，才能形成高暴露区域的交替。",
+      "up_rate_mvc_per_s": 0.45,
+      "down_rate_mvc_per_s": 0.35,
+      "noise_mvc": 0.25,
+      "interval_sim_sec": 1.0,
+      "ecu_max": 27.0,
+      "ecu_min": 8.0,
+      "fds_max": 27.0,
+      "fds_min": 8.0,
+      "ut_max": 12.0,
+      "ut_min": 5.0
+    }
+  }
+}
