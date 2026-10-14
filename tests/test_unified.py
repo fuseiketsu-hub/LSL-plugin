@@ -109,6 +109,40 @@ class TestDpiActuator(unittest.TestCase):
         raw = act.path.read_bytes()
         self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
 
+    def test_fixed_level_starts_at_that_level(self):
+        """锁档：起始档位就是指定档。
+
+        方向验证必须能从 1200 起步 —— 之前 DpiActuator 把起始档硬编码成 low，
+        导致"固定跑 1200 DPI"这个条件根本跑不出来。
+        """
+        act, _ = self._make(fixed_level="high")
+        self.assertEqual(act.level, "high")
+        self.assertAlmostEqual(act.sens, 1.5, places=6)
+        self.assertAlmostEqual(act.effective_dpi, 1200.0)
+
+    def test_fixed_level_low_matches_default(self):
+        act, _ = self._make(fixed_level="low")
+        self.assertEqual(act.level, "low")
+        self.assertAlmostEqual(act.effective_dpi, 800.0)
+
+    def test_invalid_fixed_level_falls_back_to_low(self):
+        act, _ = self._make(fixed_level="bogus")
+        self.assertEqual(act.level, "low")
+
+
+class TestFixedLevelContract(unittest.TestCase):
+    """锁档参数要经过契约校验，避免拼错的值被当成正常自动切换。"""
+
+    def test_contract_accepts_valid_and_rejects_invalid(self):
+        from lsl_apdf.session_runner import IntegratedConfig, check_contract
+
+        for good in ("", "low", "high"):
+            cfg = IntegratedConfig(fixed_level=good)
+            self.assertEqual(check_contract(cfg), [], f"fixed_level={good!r}")
+        cfg = IntegratedConfig(fixed_level="medium")
+        problems = check_contract(cfg)
+        self.assertTrue(any("fixed_level" in p for p in problems), problems)
+
 
 class TestUnifiedApdf(unittest.TestCase):
     """%MVC 序列 → APDF：mve_ref=100 时结果直接落在 %MVC 上。"""

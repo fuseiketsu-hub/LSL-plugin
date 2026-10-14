@@ -743,6 +743,8 @@ def cmd_unified(args: argparse.Namespace) -> int:
         cfg.pair = pair
     if args.plugin_dir:
         cfg.plugin_dir = args.plugin_dir
+    if getattr(args, "fixed_level", None):
+        cfg.fixed_level = args.fixed_level
     if args.duration is not None:
         cfg.duration = float(args.duration)
     if args.out:
@@ -1091,6 +1093,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_uni.add_argument("--pair", help="balance muscle pair, e.g. ECU,FDS")
     p_uni.add_argument("--plugin-dir", help="DPI plugin dir (provides rawaccel_bridge and the balance policy)")
     p_uni.add_argument("--duration", type=float, default=None, help="Session duration (s)")
+    p_uni.add_argument("--fixed-level", choices=["low", "high"], default=None,
+                       help="lock the DPI level and disable automatic switching "
+                            "(needed for the direction-verification runs)")
     p_uni.add_argument("--report", type=float, default=None, help="Status print interval (s)")
     p_uni.add_argument("--real-driver", action="store_true",
                        help="* Really write Raw Accel (changes mouse DPI); dry-run by default")
@@ -1098,10 +1103,136 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Force dry-run (no driver writes)")
     p_uni.set_defaults(func=cmd_unified)
 
+    p_cmp = sub.add_parser(
+        "compare-direction",
+        help="Compare two locked-level sessions (direction verification)")
+    p_cmp.add_argument("sessions", nargs="+",
+                       help="two or more session directories produced by unified/session")
+    p_cmp.add_argument("--labels",
+                       help="comma-separated labels, e.g. \"800,1200\"")
+    p_cmp.set_defaults(func=cmd_compare_direction)
+
     p_self = sub.add_parser("selftest", help="End-to-end self-test (algorithms + environment)")
     p_self.set_defaults(func=cmd_selftest)
 
     return parser
+
+
+def cmd_compare_direction(args: argparse.Namespace) -> int:
+    """比较两次"锁档"会话，帮助判断改变 DPI 把负荷推向了哪块肌肉。
+
+    **只报告数字，不下"方向正确"的结论。** 单次会话内 P50 本身就有波动，
+    两次之间的差异是否可信，取决于它是否明显大于会话内波动 —— 那是统计判断，
+    不该由脚本替你宣布"验证通过"（那会给出一个建立在噪声上的假绿灯）。
+    """
+    import csv as _csv
+
+    dirs = [Path(p) for p in args.sessions]
+    for d in dirs:
+        if not (d / "load_disparity.csv").exists():
+            print(f"找不到 {d / 'load_disparity.csv'}")
+            print("（该命令需要统一插件/集成会话产出的会话目录）")
+            return 2
+
+    def summarise(d: Path) -> dict:
+        levels: dict[str, dict] = {}
+        with (d / "load_disparity.csv").open(encoding="utf-8") as fh:
+            for r in _csv.DictReader(fh):
+                levels[r["level"]] = {
+                    "A": float(r["A_value"]), "B": float(r["B_value"]),
+                    "diff": float(r["diff_A_minus_B"]),
+                    "absdiff": float(r["abs_diff"]),
+                }
+        pair = ["?", "?"]
+        with (d / "load_disparity.csv").open(encoding="utf-8") as fh:
+            first = next(_csv.DictReader(fh), None)
+            if first:
+                pair = first["muscle_pair"].split("-")
+        # 会话内波动：pctmvc.csv 每 60 s 块的均值 → 标准差
+        vol = {m: float("nan") for m in pair}
+        p = d / "pctmvc.csv"
+        if p.exists():
+            with p.open(encoding="utf-8") as fh:
+                rd = _csv.reader(fh)
+                header = next(rd, [])
+                idx = {m: header.index(m) for m in pair if m in header}
+                ts, series = [], {m: [] for m in idx}
+                for row in rd:
+                    if len(row) != len(header):
+                        continue
+                    try:
+                        ts.append(float(row[0]))
+                        for m, i in idx.items():
+                            series[m].append(float(row[i]))
+                    except ValueError:
+                        continue
+            if ts:
+                t = np.asarray(ts)
+                for m, vals in series.items():
+                    a = np.asarray(vals, dtype=float)
+                    # 60 s 分块；会话太短时退回 20 s（至少要 2 块才算得出 SD）
+                    for blk in (60.0, 20.0):
+                        blocks = [float(np.nanmean(a[(t >= s) & (t < s + blk)]))
+                                  for s in np.arange(t[0], t[0] + max(
+                                      0.0, t[-1] - t[0] - blk) + 1e-9, blk)
+                                  if ((t >= s) & (t < s + blk)).sum() > 10]
+                        if len(blocks) > 1:
+                            vol[m] = float(np.nanstd(blocks, ddof=1))
+                            break
+        return {"dir": d, "levels": levels, "pair": pair, "vol": vol}
+
+    info = [summarise(d) for d in dirs]
+    labels = (args.labels.split(",") if getattr(args, "labels", None)
+              else [d.name for d in dirs])
+    while len(labels) < len(info):
+        labels.append(info[len(labels)]["dir"].name)
+
+    pair = info[0]["pair"]
+    a, b = pair[0], pair[1]
+    print("=" * 96)
+    print("锁档会话对比（方向验证）")
+    print("=" * 96)
+    print(f"  {'条件':<16}{'会话目录':<40}{a + ' P50':>10}{b + ' P50':>10}"
+          f"{'|差|':>8}{a + ' P90':>10}{b + ' P90':>10}{'SD(A/B)':>12}")
+    for lab, s in zip(labels, info):
+        m = s["levels"].get("median")
+        k = s["levels"].get("peak")
+        if not m:
+            continue
+        sd_a = s["vol"][a]
+        sd_b = s["vol"][b]
+        sd_txt = ("—" if (not np.isfinite(sd_a) or not np.isfinite(sd_b))
+                  else f"{sd_a:.2f}/{sd_b:.2f}")
+        print(f"  {lab:<16}{s['dir'].name:<40}{m['A']:>10.2f}{m['B']:>10.2f}"
+              f"{m['absdiff']:>8.2f}{k['A']:>10.2f}{k['B']:>10.2f}"
+              f"{sd_txt:>12}")
+    if not np.isfinite(info[0]["vol"].get(a, float("nan"))):
+        print("  （SD 无法计算：会话太短，至少需要约 40 s 以上的数据）")
+
+    print()
+    print("  每块肌肉在两次条件之间的变化（中位负荷 P50，单位 %MVC）：")
+    if len(info) >= 2:
+        first, last = info[0], info[-1]
+        m1, m2 = first["levels"].get("median"), last["levels"].get("median")
+        if m1 and m2:
+            for name, key in ((a, "A"), (b, "B")):
+                v1, v2 = m1[key], m2[key]
+                sd = last["vol"].get(name, float("nan"))
+                ratio = abs(v2 - v1) / sd if sd and sd > 0 else float("nan")
+                print(f"    {name:<6}{v1:>8.2f} -> {v2:>8.2f}   "
+                      f"{v2 - v1:>+7.2f}   "
+                      f"（会话内 SD {sd:.2f}，变化 = {ratio:.1f}×SD）"
+                      if np.isfinite(ratio) else
+                      f"    {name:<6}{v1:>8.2f} -> {v2:>8.2f}   {v2 - v1:>+7.2f}")
+
+    print()
+    print("  判读提示（**不下结论**）：")
+    print(f"    · 若 {labels[0]}(低档) -> {labels[-1]}(高档) 时 "
+          f"{a} 下降而 {b} 上升，则与「高档把负荷从 {a} 转向 {b}」的预期一致")
+    print("    · 变化是否可信，取决于它相对「会话内 SD」的倍数：")
+    print("      1x 以内基本是噪声；个位数倍以上才值得当方向证据。")
+    print("      必要时重复几次，或延长单次时长。")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

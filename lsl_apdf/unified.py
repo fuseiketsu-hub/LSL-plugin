@@ -96,9 +96,14 @@ class DpiActuator:
         raw_cfg["dry_run"] = self.dry_run
         self.bridge = rawaccel_bridge.make_bridge(raw_cfg, quiet=True)
 
-        self.level = "low"
-        self.sens = self._sens_of("low")
-        self.target_level = "low"
+        # 起始档位：默认基准档（low）；方向验证等需要"锁在固定档"时由
+        # cfg.fixed_level 指定，此时起始状态就直接写该档。
+        start = getattr(self.cfg, "fixed_level", "") or "low"
+        if start not in ("low", "high"):
+            start = "low"
+        self.level = start
+        self.sens = self._sens_of(start)
+        self.target_level = start
         self._ramp: dict[str, Any] | None = None
         self.rows_written = 0
 
@@ -437,6 +442,12 @@ class UnifiedSession:
         accum = {m: GrowableF64() for m in pipeline.muscles}
         self._banner(meta, pipeline, policy, actuator)
 
+        fixed_level = str(getattr(cfg, "fixed_level", "") or "").strip().lower()
+        if fixed_level:
+            self.printer(f"  Locked level: {fixed_level} "
+                         f"({actuator._dpi_of(fixed_level):.0f} DPI) "
+                         f"- automatic switching disabled")
+
         t0 = time.time()
         next_send = 0.0
         next_report = 0.0
@@ -461,6 +472,12 @@ class UnifiedSession:
                 if latest and elapsed >= next_send:
                     monitor.set(latest)
                     actuator.tick(elapsed, latest)
+                    if fixed_level:
+                        # 锁档模式（方向验证用）：不做任何自动判定，档位保持不动。
+                        # 之所以必须能锁档：判定规则本身就是"哪块肌肉更重"，
+                        # 而那正是要被检验的东西 —— 让它自己决定就是循环论证。
+                        next_send = elapsed + 1.0 / max(cfg.send_hz, 0.01)
+                        continue
                     action, reason = policy.evaluate(elapsed, actuator.level,
                                                      monitor)
                     if action:

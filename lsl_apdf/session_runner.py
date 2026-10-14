@@ -97,6 +97,14 @@ class IntegratedConfig:
     # --- 驱动 / 档位 ---
     dry_run: bool = True
     """默认 True（安全）。正式实验才设 false —— 那会真的改鼠标 DPI。"""
+    fixed_level: str = ""
+    """锁档：``""``=正常自动切换（默认）；``low``/``high``=把 DPI 锁在该档并
+    **完全禁用自动判定**。
+
+    用途是**方向验证**：判定规则本身就是"哪块肌肉更重"，而那正是要被检验的
+    对象 —— 让它自己决定档位就是循环论证。所以要验证"调高 DPI 是否把负荷从
+    ECU 转到 FDS"，必须固定跑 800 与固定跑 1200 两个条件再比较。
+    """
     switch_ramp_sec: float = 300.0
     levels: dict[str, dict[str, float]] = field(default_factory=lambda: {
         "low": {"dpi": 800, "sens": 1.0},
@@ -238,6 +246,9 @@ def check_contract(cfg: IntegratedConfig) -> list[str]:
     if cfg.metric not in ("apdf_level", "excess_area"):
         problems.append(
             f"metric must be apdf_level/excess_area, got {cfg.metric!r}")
+    if cfg.fixed_level not in ("", "low", "high"):
+        problems.append(
+            f"fixed_level must be empty/low/high, got {cfg.fixed_level!r}")
     if not 1.0 <= cfg.level_percentile <= 99.0:
         problems.append(
             f"level_percentile must be within 1..99, got {cfg.level_percentile!r}")
