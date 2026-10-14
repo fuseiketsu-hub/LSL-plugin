@@ -316,3 +316,9 @@ LSL 相关测试若在受限网络环境下发现不了流会自动跳过（并�
   但 `session.add_apdf_callback` 就是为这类下游判定预留的接入点；
 * 未做长时（数小时）滚动的分段 APDF 报告，目前 `percentiles.csv` 给出的是
   累积曲线随时间的变化。
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
