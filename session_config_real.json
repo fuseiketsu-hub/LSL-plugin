@@ -1,7 +1,7 @@
 {
   "_说明": "正式实验配置：每 15 分钟比较一次（比较窗/基线/比较间隔均 900 s）+ compare=absolute（直接比较原始高暴露面积，不做基线倍数归一）。MVC 请按你实测计算出的数值在统一界面输入框里填入（界面会覆盖这里的初值）。dry_run 只是默认值，真正写鼠标需在界面勾选「★ 真实写 Raw Accel」并确认。",
 
-  "plugin_dir": "..\\插件\\plugin",
+  "plugin_dir": "plugin",
 
   "channels": "A1=ECU,A2=FDS,A3=UT,A4=EDC",
   "mvc": {"ECU": 80.0, "FDS": 57.0, "UT": 83.0, "EDC": 59.0},

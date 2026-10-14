@@ -60,7 +60,7 @@ __all__ = [
 class IntegratedConfig:
     """一次集成会话的全部参数（**两边共用这一份**）。"""
 
-    plugin_dir: str = r"..\插件\plugin"
+    plugin_dir: str = "plugin"
     channels: str = "A1=ECU,A2=FDS,A3=UT,A4=EDC"
     mvc: dict[str, float] = field(default_factory=lambda: {
         "ECU": 80.0, "FDS": 57.0, "UT": 83.0, "EDC": 59.0,

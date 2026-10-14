@@ -1,7 +1,7 @@
 {
   "_说明": "组合集成会话配置：一份配置同时决定信号侧（通道映射/MVC）与执行侧（balance 参数/端口/日志）。用 lsl_apdf session --session-config 本文件 运行。",
 
-  "plugin_dir": "..\\插件\\plugin",
+  "plugin_dir": "plugin",
 
   "channels": "A1=ECU,A2=FDS,A3=UT,A4=EDC",
   "mvc": {"ECU": 80.0, "FDS": 57.0, "UT": 83.0, "EDC": 59.0},

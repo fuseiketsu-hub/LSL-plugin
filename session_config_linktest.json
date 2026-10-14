@@ -1,6 +1,6 @@
 {
   "_说明": "演示用：时间常数缩小 + MVC=1000（与内置合成源/模拟流的量级一致）。正式实验用 session_config_example.json。",
-  "plugin_dir": "..\\插件\\plugin",
+  "plugin_dir": "plugin",
   "channels": "A1=ECU,A2=FDS,A3=UT,A4=EDC",
   "mvc": {
     "ECU": 1000.0,

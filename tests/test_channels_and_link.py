@@ -230,7 +230,7 @@ class TestLineFormatting(unittest.TestCase):
         """最关键的兼容性测试：DPI 插件自己的 parse_line 必须能解析我们发的行。"""
         import sys
 
-        plugin_dir = Path(r"..\插件\plugin")
+        plugin_dir = Path(__file__).resolve().parents[1] / "plugin"
         if not (plugin_dir / "emg_server.py").exists():
             self.skipTest("未找到 DPI 插件目录，跳过跨项目兼容性测试")
         sys.path.insert(0, str(plugin_dir))

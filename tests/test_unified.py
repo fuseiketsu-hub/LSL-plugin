@@ -13,7 +13,7 @@ import numpy as np
 from lsl_apdf.dsp import GrowableF64
 from lsl_apdf.session_runner import IntegratedConfig
 
-PLUGIN_DIR = Path(r"..\插件\plugin")
+PLUGIN_DIR = Path(__file__).resolve().parents[1] / "plugin"
 HAS_PLUGIN = (PLUGIN_DIR / "rawaccel_bridge.py").exists()
 
 

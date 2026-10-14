@@ -47,8 +47,8 @@ git push -u origin main
 
 ```powershell
 # 你的组会材料脚本（会把仓库变成"杂项抽屉"）
-git rm --cached make_groupmeeting_ppt.py make_groupmeeting_ppt_zemi.py `
-              make_groupmeeting_ppt_zemi_ja.py make_system_diagram.py `
+git rm --cached make_groupmeeting_ppt.py （组会脚本） `
+              （另一个组会脚本） make_system_diagram.py `
               make_filter_demo_figure.py
 # PLUX 官方文档（第三方版权，建议改放官方链接）
 git rm --cached "OpenSignals_LSL使用说明.md"
