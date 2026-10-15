@@ -460,15 +460,10 @@ class UnifiedGuiApp:
         self.ax_apdf.grid(alpha=0.25)
         # 参考元素只画一次（先前在 _render 里每帧 axvline，会在一次会话里
         # 累积成百上千条重复线）。
-        for p, name in ((0.1, "static P10"), (0.5, "median P50"),
-                        (0.9, "peak P90")):
-            self.ax_apdf.axhline(p, color="#aaaaaa", ls=":", lw=0.9, zorder=1)
-            self.ax_apdf.text(0.6, p + 0.015, f"{name}  (P={p:g})",
-                              fontsize=7, color="#888888", va="bottom")
-        # Jonsson(1982) 的"不得超过"限值点：曲线跑到这些点的右侧即超标
-        self.ax_apdf.plot([5.0, 14.0, 70.0], [0.1, 0.5, 0.9], ls="none",
-                          marker="x", ms=7, mew=1.6, color="#cc0000",
-                          zorder=4, label="Jonsson limit (must not exceed)")
+        # 只保留 static (P=0.1) 一条参考线（按需求：去掉 median/peak 线与限值点）
+        self.ax_apdf.axhline(0.1, color="#aaaaaa", ls=":", lw=0.9, zorder=1)
+        self.ax_apdf.text(0.6, 0.115, "static P10  (P=0.1)",
+                          fontsize=7, color="#888888", va="bottom")
         self.ax_apdf.axvline(float(self.cfg.high_thr), color="#e0a800",
                              ls="--", lw=1.1, zorder=1)
         canvas = FigureCanvasTkAgg(self.fig, master=left)
@@ -612,19 +607,39 @@ class UnifiedGuiApp:
         """
         entries: list[str] = []
         self._streams = []
+        n_foreign = 0
         if PYLSL_AVAILABLE:
             try:
                 found = discover_streams(wait_time=0.6)
             except Exception as exc:
                 found = []
                 self.status_var.set(f"Failed to refresh stream list: {exc}")
+            # 排序：OpenSignals 排最前并优先自动选中；其它流（同网段上别的
+            # 机器发的示例流，如 LSLOutletStreamName-EEG / Accelerometer）
+            # 排后面并加警告前缀 —— 它们能被 LSL 发现但**不是 EMG**，
+            # 误选会把 EEG/加速度计数据当成肌电录下来。
+            found = sorted(found, key=lambda m: (m.name != "OpenSignals", m.name))
             for meta in found:
                 self._streams.append(meta)
-                entries.append(f"{meta.name} | {meta.type} | {meta.hostname} | "
-                               f"{meta.n_channels}ch | {meta.nominal_srate:g}Hz")
+                is_os = meta.name == "OpenSignals"
+                if not is_os:
+                    n_foreign += 1
+                prefix = "" if is_os else "⚠ 非 OpenSignals："
+                entries.append(f"{prefix}{meta.name} | {meta.type} | "
+                               f"{meta.hostname} | {meta.n_channels}ch | "
+                               f"{meta.nominal_srate:g}Hz")
             if found:
-                self.status_var.set(
-                    f"Found {len(found)} LSL stream(s); first one auto-selected -> click Start")
+                if found[0].name == "OpenSignals":
+                    self.status_var.set(
+                        f"Found {len(found)} LSL stream(s); OpenSignals auto-selected"
+                        + (f" · {n_foreign} non-OpenSignals stream(s) listed below"
+                           if n_foreign else "")
+                        + " -> click Start")
+                else:
+                    self.status_var.set(
+                        f"Found {len(found)} LSL stream(s) but none is named "
+                        f"OpenSignals — check that OpenSignals is recording before "
+                        f"selecting one")
             else:
                 self.status_var.set(
                     "No LSL streams found -> enable Settings->INTEGRATIONS->"
@@ -704,6 +719,21 @@ class UnifiedGuiApp:
         meta = self._selected_stream()
         if meta is None:
             return make_demo_source(self.cfg.channels, self.cfg.mvc)
+        # 选到非 OpenSignals 的流时先确认：同网段上别的机器发的示例流
+        # （EEG / Accelerometer / Quality / Markers）也长这样，误选会把
+        # 完全不同的信号当成肌电录下来，而事后从数据上很难发现。
+        if meta.name != "OpenSignals":
+            ok = messagebox.askyesno(
+                "Selected stream is not OpenSignals",
+                f"You selected:\n    name = {meta.name}\n    type = {meta.type}\n"
+                f"    host = {meta.hostname}\n    {meta.n_channels} ch @ "
+                f"{meta.nominal_srate:g} Hz\n\n"
+                "This does not look like an OpenSignals EMG stream. It is "
+                "probably a demo/placeholder stream published by another "
+                "computer on the network.\n\n"
+                "Continue anyway?")
+            if not ok:
+                raise ValueError("Cancelled: the selected stream is not OpenSignals")
         sc = stream_config_from(self.cfg)
         if meta.type:
             sc.type, sc.hostname = meta.type, ""

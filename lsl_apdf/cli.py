@@ -1391,24 +1391,17 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
         ax.set_xlim(0, 78)
         ax.set_ylim(0.0, 1.0)
         ax.grid(alpha=0.25)
-        # 三个标准负荷水平的读取位置：Y = 0.1 / 0.5 / 0.9（水平线，向右读 X）
-        for p, name in ((0.1, "static P10"), (0.5, "median P50"),
-                        (0.9, "peak P90")):
-            ax.axhline(p, color="#aaaaaa", ls=":", lw=0.9, zorder=1)
-            ax.text(0.6, p + 0.012, f"{name}  (P={p:g})",
-                    fontsize=7.5, color="#888888", va="bottom")
-        # Jonsson "不得超过" 限值点：曲线位于这些点的右侧 = 该水平超标
-        ax.plot([5.0, 14.0, 70.0], [0.1, 0.5, 0.9], ls="none", marker="x",
-                ms=8, mew=1.6, color="#cc0000", zorder=4,
-                label="Jonsson limit (must not exceed)")
+        # 只保留 static (P=0.1) 一条参考线（按需求：去掉 median/peak 线与限值点）
+        ax.axhline(0.1, color="#aaaaaa", ls=":", lw=0.9, zorder=1)
+        ax.text(0.6, 0.115, "static P10  (P=0.1)",
+                fontsize=7.5, color="#888888", va="bottom")
         ax.legend(fontsize=8, loc="lower right", frameon=False)
         out = Path(out_dir) / "apdf_compare.png"
         FigureCanvasAgg(fig).print_png(str(out))
         print()
         print(f"  叠加图已保存：{out}")
         print("    同一肌肉的实线 vs 虚线差异 = 条件对该肌肉负荷分布的影响；")
-        print("    曲线整体**右移**（同一 P 下幅值更高）= 该肌肉负荷变重；")
-        print("    曲线若跑到红色 ×（Jonsson 限值点）的右侧 = 该水平超标。")
+        print("    曲线整体**右移**（同一 P 下幅值更高）= 该肌肉负荷变重。")
     except Exception as exc:                       # pragma: no cover - 绘图环境
         print(f"  （曲线图渲染失败：{exc}）")
 

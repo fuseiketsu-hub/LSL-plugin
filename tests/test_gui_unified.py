@@ -301,22 +301,55 @@ class TestSourceSelection(unittest.TestCase):
         self.assertEqual(src.cfg.resolve_property(), ("type", mac))
 
     def test_selected_stream_falls_back_to_hostname_or_name(self):
+        """非 OpenSignals 的流要弹确认框 —— 测试里把它 mock 成"同意"。"""
         from lsl_apdf.gui_unified import SYNTHETIC_ENTRY, UnifiedGuiApp
         from lsl_apdf.sources import StreamMeta
+        import tkinter.messagebox as mb
 
         app = UnifiedGuiApp(self.root, self._cfg())
-        app._streams = [StreamMeta(name="OS", type="", hostname="MyPC",
-                                   n_channels=4, nominal_srate=1000.0)]
-        app.stream_combo["values"] = ["y", SYNTHETIC_ENTRY]
-        app.stream_combo.current(0)
-        self.assertEqual(app._build_source().cfg.resolve_property(),
-                         ("hostname", "MyPC"))
+        orig = mb.askyesno
+        mb.askyesno = lambda *a, **k: True          # 用户在确认框里点"是"
+        try:
+            app._streams = [StreamMeta(name="OS", type="", hostname="MyPC",
+                                       n_channels=4, nominal_srate=1000.0)]
+            app.stream_combo["values"] = ["y", SYNTHETIC_ENTRY]
+            app.stream_combo.current(0)
+            self.assertEqual(app._build_source().cfg.resolve_property(),
+                             ("hostname", "MyPC"))
 
-        app._streams = [StreamMeta(name="OpenSignals", type="", hostname="",
-                                   n_channels=4, nominal_srate=1000.0)]
+            app._streams = [StreamMeta(name="OpenSignals", type="", hostname="",
+                                       n_channels=4, nominal_srate=1000.0)]
+            app.stream_combo.current(0)
+            self.assertEqual(app._build_source().cfg.resolve_property(),
+                             ("name", "OpenSignals"))
+        finally:
+            mb.askyesno = orig
+
+    def test_non_opensignals_stream_is_confirmed_and_can_be_declined(self):
+        """同网段上别的机器会发 LSLOutletStreamName-EEG/Accelerometer 之类的
+        示例流 —— 误选会把完全不同的信号当成肌电录下来。所以选到非
+        OpenSignals 的流必须先确认；拒绝时要中止（抛错），不能默默开录。"""
+        from lsl_apdf.gui_unified import SYNTHETIC_ENTRY, UnifiedGuiApp
+        from lsl_apdf.sources import StreamMeta
+        import tkinter.messagebox as mb
+
+        app = UnifiedGuiApp(self.root, self._cfg())
+        app._streams = [StreamMeta(name="LSLOutletStreamName-EEG", type="EEG",
+                                   hostname="OTHER-PC", n_channels=8,
+                                   nominal_srate=500.0)]
+        app.stream_combo["values"] = ["⚠ x", SYNTHETIC_ENTRY]
         app.stream_combo.current(0)
-        self.assertEqual(app._build_source().cfg.resolve_property(),
-                         ("name", "OpenSignals"))
+
+        asked = {}
+        orig = mb.askyesno
+        mb.askyesno = lambda title, msg, **k: asked.update(title=title, msg=msg) or False
+        try:
+            with self.assertRaises(ValueError):
+                app._build_source()                 # 拒绝 → 中止
+        finally:
+            mb.askyesno = orig
+        self.assertIn("not OpenSignals", asked.get("title", ""))
+        self.assertIn("EEG", asked.get("msg", ""))   # 对话框里要给出流信息
 
     def test_synthetic_selected_explicitly(self):
         from lsl_apdf.gui_unified import SYNTHETIC_ENTRY, UnifiedGuiApp
