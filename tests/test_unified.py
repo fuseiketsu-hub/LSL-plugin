@@ -167,12 +167,12 @@ class TestUnifiedApdf(unittest.TestCase):
         r = rows[0]
         self.assertEqual(r.muscle, "ECU")
         self.assertEqual(r.n_windows, 1000)
-        # 30% 与 10% 各占一半 → 中位数落在两者之间；阈值 20 以上占 50%
+        # 30% 与 10% 各占一半 → 中位数落在两者之间
         self.assertGreater(r.median_pct, 10.0)
         self.assertLess(r.median_pct, 30.0)
-        self.assertAlmostEqual(r.high_ratio, 50.0, places=1)
-        # 面积 = (30-20) * 500 窗 * hop(0.0625)
-        self.assertAlmostEqual(r.high_area, 10.0 * 500 * 0.0625, delta=1.0)
+        # 只有三个已发表水平；自造的 area/ratio 已删除，不该再出现在行里
+        self.assertFalse(hasattr(r, "high_area"))
+        self.assertFalse(hasattr(r, "high_ratio"))
 
     def test_levels_are_in_percent_mvc(self):
         cfg = IntegratedConfig(dry_run=True)
@@ -182,7 +182,18 @@ class TestUnifiedApdf(unittest.TestCase):
         self.assertAlmostEqual(r.static_pct, 40.0, places=6)
         self.assertAlmostEqual(r.median_pct, 40.0, places=6)
         self.assertAlmostEqual(r.peak_pct, 40.0, places=6)
-        self.assertAlmostEqual(r.high_ratio, 100.0, places=6)
+
+    def test_header_has_no_exposure_area_columns(self):
+        """表头只应包含三个负荷水平，不再有自造的面积/占比列。"""
+        from lsl_apdf.unified import MuscleApdf
+
+        header = MuscleApdf.header()
+        self.assertEqual(header, [
+            "muscle", "n_windows", "total_sec",
+            "static_P10_exceeded90pct_mvc",
+            "median_P50_exceeded50pct_mvc",
+            "peak_P90_exceeded10pct_mvc"])
+        self.assertFalse(any("area" in h or "ratio" in h for h in header))
 
     def test_empty_muscle_is_nan_not_crash(self):
         cfg = IntegratedConfig(dry_run=True)

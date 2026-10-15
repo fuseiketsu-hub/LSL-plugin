@@ -215,7 +215,7 @@ class _Engine(threading.Thread):
                     next_send = elapsed + 0.5
                 if elapsed >= next_apdf:
                     self._apdf, self._curves = apdf_rows_and_curves(
-                        self._accum, pipeline.muscles, cfg.high_thr, cfg.signal)
+                        self._accum, pipeline.muscles, cfg.signal)
                     next_apdf = elapsed + 1.0
                 if elapsed >= next_flush:          # 周期落盘，中途崩溃也不丢
                     fh.flush()
@@ -237,8 +237,8 @@ class _Engine(threading.Thread):
                     s.crossings = policy.stats["crossings"]
         finally:
             actuator.reset(now - t0)
-            rows, curves = apdf_rows_and_curves(self._accum, pipeline.muscles,
-                                                cfg.high_thr, cfg.signal)
+            rows, curves = apdf_rows_and_curves(
+                self._accum, pipeline.muscles, cfg.signal)
             with (self.session_dir / "apdf_summary.csv").open(
                     "w", encoding="utf-8", newline="") as out:
                 w = csv.writer(out)
@@ -464,8 +464,6 @@ class UnifiedGuiApp:
         self.ax_apdf.axhline(0.1, color="#aaaaaa", ls=":", lw=0.9, zorder=1)
         self.ax_apdf.text(0.6, 0.115, "static P10  (P=0.1)",
                           fontsize=7, color="#888888", va="bottom")
-        self.ax_apdf.axvline(float(self.cfg.high_thr), color="#e0a800",
-                             ls="--", lw=1.1, zorder=1)
         canvas = FigureCanvasTkAgg(self.fig, master=left)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=BOTH, expand=True)

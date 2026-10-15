@@ -48,7 +48,7 @@ from .session_runner import IntegratedConfig, check_contract, session_dir_for
 
 __all__ = ["DpiActuator", "UnifiedSession", "run_unified", "APDF_COLUMNS",
            "compute_muscle_apdf", "apdf_rows_and_curves", "make_demo_source",
-           "write_apdf_curve", "write_load_disparity", "thr_default"]
+           "write_apdf_curve", "write_load_disparity"]
 
 #: 与插件原版 ``sens_log_*.csv`` 相同的列，保证 ``tools/plot_log.py`` 还能画
 APDF_COLUMNS = [
@@ -225,25 +225,19 @@ class DpiActuator:
 # --------------------------------------------------------------------------- #
 # 信号侧 + 判定的胶水
 # --------------------------------------------------------------------------- #
-def thr_default(cfg: IntegratedConfig) -> float:
-    return float(cfg.high_thr)
-
-
 def compute_muscle_apdf(
     accum: dict[str, GrowableF64],
     muscles: list[str],
-    thr: float = 20.0,
     signal_cfg: Mapping[str, Any] | None = None,
 ) -> list["MuscleApdf"]:
     """把每肌肉的 %MVC 累积序列算成 APDF（只要汇总行）。"""
-    rows, _ = apdf_rows_and_curves(accum, muscles, thr, signal_cfg)
+    rows, _ = apdf_rows_and_curves(accum, muscles, signal_cfg)
     return rows
 
 
 def apdf_rows_and_curves(
     accum: dict[str, GrowableF64],
     muscles: list[str],
-    thr: float = 20.0,
     signal_cfg: Mapping[str, Any] | None = None,
 ) -> tuple[list["MuscleApdf"], dict[str, tuple[np.ndarray, np.ndarray]]]:
     """一次算完汇总行 + 绘图曲线。
@@ -252,6 +246,10 @@ def apdf_rows_and_curves(
 
     曲线必须在这里（**工作线程**）算好：累积数组由采集线程写入，界面线程若直接
     去读会在扩容时读到撕裂的数据；而且每帧重算 APDF 在长会话里会越来越慢。
+
+    只输出 Jonsson 的三个**已发表**负荷水平；此前那个按任意阈值积分的
+    "危险暴露面积"（Σmax(%MVC−thr,0)·dt）与时间占比已删除 —— 它没有文献
+    依据，三个百分位水平已完全取代它。
     """
     signal_cfg = signal_cfg or {}
     win = float(signal_cfg.get("rms_window_sec", 0.125))
@@ -261,13 +259,11 @@ def apdf_rows_and_curves(
     for m in muscles:
         values = accum[m].to_array() if m in accum else np.empty(0)
         if values.size == 0:
-            rows.append(MuscleApdf(m, 0, 0.0, np.nan, np.nan, np.nan, 0.0,
-                                   np.nan))
+            rows.append(MuscleApdf(m, 0, 0.0, np.nan, np.nan, np.nan))
             continue
         result = compute_apdf(values, mve_ref=100.0, window_sec=win, hop_sec=hop)
         curves[m] = (result.probability_pct.copy(),
                      result.level_at_probability_pct.copy())
-        excess = np.maximum(values - thr, 0.0)
         rows.append(MuscleApdf(
             muscle=m,
             n_windows=int(values.size),
@@ -275,8 +271,6 @@ def apdf_rows_and_curves(
             static_pct=result.static_level,
             median_pct=result.median_level,
             peak_pct=result.peak_level,
-            high_area=float(np.sum(excess) * hop),
-            high_ratio=float(np.mean(values > thr) * 100.0),
         ))
     return rows, curves
 
@@ -347,12 +341,6 @@ def write_load_disparity(rows, pair, session_dir) -> dict:
                     "ratio": float(va / vb) if vb > 0 else float("nan"),
                     "exceed_A": float(va / limits[key]),
                     "exceed_B": float(vb / limits[key])}
-    # 也报告自造面积（仅作对照，论文不应使用）
-    if ra is not None and rb is not None:
-        ha, hb = getattr(ra, "high_area", float("nan")), getattr(rb, "high_area", float("nan"))
-        if np.isfinite(ha) and np.isfinite(hb):
-            out["excess_area_for_contrast"] = {"A": float(ha), "B": float(hb),
-                                               "diff": float(ha - hb)}
 
     path = Path(session_dir) / "load_disparity.csv"
     with open(path, "w", encoding="utf-8", newline="") as fh:
@@ -407,37 +395,36 @@ class _Monitor:
 
 @dataclass
 class MuscleApdf:
+    """一块肌肉的 APDF 汇总：只有 Jonsson(1982) 的三个已发表负荷水平。
+
+    （此前的 `high_area` / `high_ratio` —— 按任意阈值积分的"危险暴露面积"
+    与超阈时间占比 —— 已删除：它们是自造量，没有文献依据。）
+    """
     muscle: str
     n_windows: int
     total_sec: float
     static_pct: float
     median_pct: float
     peak_pct: float
-    high_area: float
-    high_ratio: float
 
     @staticmethod
     def header() -> list[str]:
         """表头自带口径说明 —— 避免"10% level"这类说法的方向歧义。
 
-        Jonsson (1982) 的 APDF 用**超概率**描述三个负荷水平：
-        static = 被超过 90% 时间的水平、median = 50%、peak = 10%。
-        按幅值分布的**分位**说，则分别是 P10 / P50 / P90（数字是交叉的：
-        "10% level" 是 peak、对应 P90）。这里把两套口径都写进表头，
-        读数据的人就不必猜。
+        Jonsson (1982) 原文的 P 是"幅值**不超过**该水平的时间比例"
+        （= 分位数）：P=0.1 是 static、P=0.5 是 median、P=0.9 是 peak。
+        等价地按"被超过的时间"说，则是 90% / 50% / 10%。这里把两套口径
+        都写进表头（P 分位 + 超概率），读数据的人就不必猜。
         """
         return ["muscle", "n_windows", "total_sec",
                 "static_P10_exceeded90pct_mvc",
                 "median_P50_exceeded50pct_mvc",
-                "peak_P90_exceeded10pct_mvc",
-                "high_area_pct_s",
-                "high_ratio_pct"]
+                "peak_P90_exceeded10pct_mvc"]
 
     def as_row(self) -> list[Any]:
         return [self.muscle, self.n_windows, f"{self.total_sec:.2f}",
                 f"{self.static_pct:.2f}", f"{self.median_pct:.2f}",
-                f"{self.peak_pct:.2f}", f"{self.high_area:.1f}",
-                f"{self.high_ratio:.2f}"]
+                f"{self.peak_pct:.2f}"]
 
 
 class UnifiedSession:
@@ -559,7 +546,7 @@ class UnifiedSession:
         finally:
             actuator.reset(now - t0)
             apdf_rows, apdf_curves = apdf_rows_and_curves(
-                accum, pipeline.muscles, cfg.high_thr, cfg.signal)
+                accum, pipeline.muscles, cfg.signal)
             self._write_apdf(apdf_rows)
             curve_path = write_apdf_curve(apdf_curves, pipeline.muscles,
                                           self.session_dir)
@@ -644,8 +631,7 @@ class UnifiedSession:
     def _compute_apdf(self, accum: dict[str, GrowableF64],
                       muscles: list[str]) -> list[MuscleApdf]:
         """%MVC 序列 → APDF（单位 %MVC），见 :func:`compute_muscle_apdf`。"""
-        return compute_muscle_apdf(accum, muscles, self.cfg.high_thr,
-                                   self.cfg.signal)
+        return compute_muscle_apdf(accum, muscles, self.cfg.signal)
 
     def _write_apdf(self, rows: list[MuscleApdf]) -> None:
         path = self.session_dir / "apdf_summary.csv"
@@ -675,13 +661,12 @@ class UnifiedSession:
     def _print_summary(self, rows: list[MuscleApdf]) -> None:
         p = self.printer
         p("-" * 76)
-        p("  Per-muscle APDF (unit: %MVC)")
-        p(f"    {'muscle':<6}{'windows':>7}{'span_s':>9}{'static':>9}{'median':>9}"
-          f"{'peak':>9}{'>20%area':>11}{'>20%ratio':>10}")
+        p("  Per-muscle APDF load levels (unit: %MVC, Jonsson 1982)")
+        p(f"    {'muscle':<6}{'windows':>7}{'span_s':>9}"
+          f"{'static P10':>12}{'median P50':>12}{'peak P90':>10}")
         for r in rows:
             p(f"    {r.muscle:<6}{r.n_windows:>7}{r.total_sec:>9.1f}"
-              f"{r.static_pct:>9.1f}{r.median_pct:>9.1f}{r.peak_pct:>9.1f}"
-              f"{r.high_area:>11.1f}{r.high_ratio:>9.1f}%")
+              f"{r.static_pct:>12.1f}{r.median_pct:>12.1f}{r.peak_pct:>10.1f}")
         b = self.summary.get("balance", {})
         p("-" * 76)
         p(f"  Switches {b.get('switches', 0)} / crossings {b.get('crossings', 0)} / "
