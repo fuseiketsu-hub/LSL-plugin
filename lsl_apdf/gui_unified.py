@@ -479,8 +479,18 @@ class UnifiedGuiApp:
             self.apdf_tree.heading(c, text=t)
             self.apdf_tree.column(c, width=w, anchor="e")
         self.apdf_tree.pack(fill=X)
-        ttk.Label(summ, text="低于 5 / 14 / 70 %MVC 为参考限值（Jonsson 1982）",
-                  foreground="#777777", font=("", 8)).pack(anchor="w", pady=(2, 0))
+        # 把 Jonsson(1982) 的定义直接写在表下面：APDF 用**超概率**描述三个水平，
+        # 而"10% level"指的是 peak（被超过 10% 时间 → 高），与分位 P90 对应；
+        # "90% level"是 static（被超过 90% 时间 → 低），对应 P10。数字是交叉的，
+        # 不写清方向极易被读反。
+        ttk.Label(
+            summ,
+            text="static = exceeded 90% of time (P10)\n"
+                 "median = exceeded 50% of time (P50)\n"
+                 "peak   = exceeded 10% of time (P90)\n"
+                 "ref. limits (Jonsson 1982): 5 / 14 / 70 %MVC",
+            foreground="#777777", font=("", 8), justify="left").pack(
+                anchor="w", pady=(3, 0))
 
         dpi = ttk.LabelFrame(right, text="Mouse sensitivity", padding=6)
         dpi.pack(fill=X)

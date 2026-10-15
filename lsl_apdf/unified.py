@@ -403,8 +403,19 @@ class MuscleApdf:
 
     @staticmethod
     def header() -> list[str]:
-        return ["muscle", "n_windows", "total_sec", "static_pct_mvc",
-                "median_pct_mvc", "peak_pct_mvc", "high_area_pct_s",
+        """表头自带口径说明 —— 避免"10% level"这类说法的方向歧义。
+
+        Jonsson (1982) 的 APDF 用**超概率**描述三个负荷水平：
+        static = 被超过 90% 时间的水平、median = 50%、peak = 10%。
+        按幅值分布的**分位**说，则分别是 P10 / P50 / P90（数字是交叉的：
+        "10% level" 是 peak、对应 P90）。这里把两套口径都写进表头，
+        读数据的人就不必猜。
+        """
+        return ["muscle", "n_windows", "total_sec",
+                "static_P10_exceeded90pct_mvc",
+                "median_P50_exceeded50pct_mvc",
+                "peak_P90_exceeded10pct_mvc",
+                "high_area_pct_s",
                 "high_ratio_pct"]
 
     def as_row(self) -> list[Any]:

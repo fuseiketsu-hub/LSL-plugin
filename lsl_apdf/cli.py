@@ -1292,6 +1292,11 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
     print("=" * 88)
     print("APDF 曲线比较（超概率 P → 幅值 %MVC）")
     print("=" * 88)
+    print("  口径（Jonsson 1982）：static = 被超过 90% 时间的水平 = P10")
+    print("                        median = 被超过 50% 时间的水平 = P50")
+    print("                        peak   = 被超过 10% 时间的水平 = P90")
+    print("  ⚠ 超概率与分位方向相反：超概率 10% 对应 P90（peak，高），"
+          "90% 对应 P10（static，低）")
     for muscle in pair:
         print(f"\n  【{muscle}】")
         head = f"  {'超概率 P':>10}"
@@ -1344,7 +1349,21 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
         ax.set_title("APDF 曲线比较（同一肌肉 实线 vs 虚线 = 该条件的影响）")
         ax.set_xlim(0, 100)
         ax.grid(alpha=0.25)
-        ax.legend(fontsize=8, loc="upper right", frameon=False)
+        # 图例放左下：右上要给 "static = exceeded 90% of time" 的标注让位，
+        # 否则两段文字会叠在一起（左下区域曲线不在那里）。
+        ax.legend(fontsize=8, loc="lower left", frameon=False)
+        # 标出 Jonsson(1982) 读三个标准负荷水平的位置。写清"被超过 X% 时间"
+        # 是必须的：超概率 10% 得到的是 peak（高），90% 得到的是 static（低），
+        # 与分位 P90 / P10 对应 —— 数字交叉，图上不标就容易被读反。
+        lo, hi = ax.get_ylim()
+        ax.set_ylim(lo, hi + (hi - lo) * 0.16)
+        top = ax.get_ylim()[1]
+        for p, name in ((10.0, "peak (P90)"), (50.0, "median (P50)"),
+                        (90.0, "static (P10)")):
+            ax.axvline(p, color="#999999", ls=":", lw=0.9, zorder=1)
+            ax.text(p + 1.0, top * 0.985,
+                    f"{name}\nexceeded {p:g}% of time",
+                    fontsize=7, color="#666666", va="top", ha="left")
         out = Path(out_dir) / "apdf_compare.png"
         FigureCanvasAgg(fig).print_png(str(out))
         print()
