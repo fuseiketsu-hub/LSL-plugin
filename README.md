@@ -325,57 +325,70 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-# APDF 负荷水平的定义（引用时照这个写）
+# APDF 负荷水平的定义（已核对原文）
 
-Jonsson (1982) 用 **APDF（幅值概率分布）** 描述肌肉在不同负荷水平上停留的时间比例，
-标准报告量是**三个负荷水平**。它们有**两种等价但方向相反**的说法 ——
-这是引用时最容易出错的地方：
+**原文：Jonsson B. (1982) "Measurement and evaluation of local muscular strain in the
+shoulder during constrained work", *Journal of Human Ergology* 11(1):73–88.**
+DOI [10.11183/jhe1972.11.73](https://doi.org/10.11183/jhe1972.11.73) · PMID 7186516 ·
+[原文页（免费开放获取）](https://www.jstage.jst.go.jp/article/jhe1972/11/1/11_1_73/_article/-char/en)
 
-| 名称 | 超概率口径（论文常用） | 分位口径（统计常用） | 含义 |
-|------|---------------------|-------------------|------|
-| **static** load level | 被超过 **90%** 时间的水平 | **P10** | 持续 / 静态负荷成分（**低**） |
-| **median** load level | 被超过 **50%** 时间的水平 | **P50** | 中位负荷 |
-| **peak** load level | 被超过 **10%** 时间的水平 | **P90** | 峰值负荷成分（**高**） |
+Jonsson 用 **P** 表示「**幅值不超过该水平的时间比例**」（从低端累计，等价于分位数）：
 
-**方向是交叉的**：
+| 名称 | 原文定义 | 分位口径 | 含义 |
+|------|---------|---------|------|
+| **static** load level | **P = 0.1**（肌休息时间 ≤10%，即 90% 时间在该水平**之上**） | **P10** | 持续/静态负荷（**低**） |
+| **median** load level | **P = 0.5** | **P50** | 中位负荷 |
+| **peak** load level | **P = 0.9**（收缩高于该水平的时间 ≤10%） | **P90** | 峰值负荷（**高**） |
 
-```
-"APDF 10% level"  = 只有 10% 时间被超过 → 高 → 是 peak，  对应 P90
-"APDF 90% level"  = 有 90% 时间被超过   → 低 → 是 static，对应 P10
-```
-
-**论文里推荐这样写（不会歧义）：**
-
-> The APDF load levels are reported as the amplitude **percentiles P10 (static),
-> P50 (median) and P90 (peak)** of the %MVC amplitude distribution, following
-> Jonsson (1982).
-
-若一定要用超概率口径，每次都要把"被超过"写全：
-*the amplitude level exceeded 90% / 50% / 10% of the time, respectively*。
-**不要**只写 `static (10%)`、`peak (90%)` 或未加说明的 `10% level`。
-
-**参考限值**（常见引用值，**请核对 Jonsson 1982 原文页码后再写入论文**）：
+**另一套常见口径是"被超过的时间比例"（超概率）**，与 P **互补**：
 
 ```
-static  <=  2-5   %MVC
-median  <= 10-14  %MVC
-peak    <= 50-70  %MVC
+超概率 + P = 1
+
+static = 被超过 90% 时间的水平（= P10）   ← 原文 P=0.1
+peak   = 被超过 10% 时间的水平（= P90）   ← 原文 P=0.9
 ```
+
+⚠️ **不要混用两套口径**：原文的「**P=0.1**」指的是 **static（低）**；
+而超概率口径的「**10%**」指的是 **peak（高）**。数字是互补的，写论文时
+**必须说明用的是哪一套**（推荐直接用分位 P10/P50/P90，最不容易错）。
+
+## 参考限值（原文 p.80，引自 Jonsson 1978）
+
+> "the **static** load level should not exceed **2%** of MVC and must not exceed **5%** of MVC;
+> the mean (or **median**) load level should not exceed **10%** of MVC and must not exceed **14%** of MVC;
+> and the **peak** loads should not exceed **50%** of MVC and must not exceed **70%** of MVC."
+
+| 水平 | 不应超过 | 不得超过 |
+|------|---------|---------|
+| static (P10) | 2 %MVC | **5 %MVC** |
+| median (P50) | 10 %MVC | **14 %MVC** |
+| peak (P90) | 50 %MVC | **70 %MVC** |
+
+**适用范围（引用时必须写明）**：受限作业（constrained work）**持续 1 小时以上**。
+原文另给出 10 分钟与整日两档限值（见原文 Fig.）。
+
+**⚠️ 最重要的一条**：原文明确强调
+
+> "the above-mentioned limits **only** are used as criteria in the analysis of the
+> myoelectric results **from groups of subjects**"
+
+即**这些限值只适用于群体分析**；个体结果超出不必然说明作业不可接受。
+**单个被试的实验引用时必须说明这一点**，否则会被审稿人指出误用。
 
 ## 本仓库的输出如何对应
 
 | 位置 | 表现 |
 |------|------|
-| 统一界面 | 表格列 `Static P10 / Median P50 / Peak P90`，下方直接印出三个定义与参考限值 |
+| 统一界面 | 表格列 `Static P10 / Median P50 / Peak P90`，下方印出三个定义与参考限值 |
 | `apdf_summary.csv` | 表头自带口径：`static_P10_exceeded90pct_mvc` / `median_P50_exceeded50pct_mvc` / `peak_P90_exceeded10pct_mvc` |
-| `load_disparity.csv` | `level` 列取值 `static` / `median` / `peak`，给出 A/B 值与超出参考限值的倍数 |
-| `compare-direction` | 输出开头印出三水平定义 + 方向提醒 |
-| `apdf_compare.png` | 图上用竖虚线标出 10% / 50% / 90% 三个**读取位置**并注明水平名（避免方向读反） |
+| `load_disparity.csv` | `level` 列取值 `static` / `median` / `peak`，给出 A/B 值与超出参考限值的倍数（限值 = 上表的"不得超过"档） |
+| `compare-direction` | 输出开头印出定义、两套口径的互补关系、以及限值与群体分析的限制 |
+| `apdf_compare.png` | 图上用竖虚线标出 10% / 50% / 90% 三个**超概率读取位置**，并同时标注对应的 Jonsson P 值 |
 
 ## 可选补充量
 
 **Exposure Variation (EV)** = APDF 的标准差（%MVC），衡量**负荷的单调程度**。
-EV 越低 = 负荷越单调 = 文献认可的肌肉骨骼疾患风险因素（Mathiassen & Winkel 一类工作）。
 static/median/peak 描述"负荷有多重"，EV 描述"负荷有多单调"，两者互补。
 **本仓库目前未实现 EV。**
 

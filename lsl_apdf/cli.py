@@ -1292,11 +1292,22 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
     print("=" * 88)
     print("APDF 曲线比较（超概率 P → 幅值 %MVC）")
     print("=" * 88)
-    print("  口径（Jonsson 1982）：static = 被超过 90% 时间的水平 = P10")
-    print("                        median = 被超过 50% 时间的水平 = P50")
-    print("                        peak   = 被超过 10% 时间的水平 = P90")
-    print("  ⚠ 超概率与分位方向相反：超概率 10% 对应 P90（peak，高），"
-          "90% 对应 P10（static，低）")
+    print("  水平定义（Jonsson 1982, J. Human Ergol. 11(1):73-88，原文以 P 表示"
+          "「幅值不超过该水平的时间比例」= 分位）：")
+    print("    static  P=0.1  （肌休息 ≤10% 时间，即 90% 时间在此水平之上）= P10")
+    print("    median  P=0.5                                                = P50")
+    print("    peak    P=0.9  （收缩高于此水平的时间 ≤10%）                 = P90")
+    print("  本图横轴是**超概率**（该水平被超过的时间比例），与原文的 P 互补"
+          "（P + 超概率 = 1）：")
+    print("    static = 被超过 90% 时间的水平 ｜ peak = 被超过 10% 时间的水平")
+    print("  ⚠ 注意不要混用：原文的「P=0.1」是 static（低），"
+          "而超概率「10%」是 peak（高）——两套口径的数字是互补的。")
+    print("  参考限值（原文 p.80，引自 Jonsson 1978；适用：持续 ≥1 小时的受限作业）：")
+    print("    static  不超过 2%， 不得超过 5%  MVC")
+    print("    median  不超过 10%，不得超过 14% MVC")
+    print("    peak    不超过 50%，不得超过 70% MVC")
+    print("  ⚠ 原文强调：这些限值**只适用于群体分析**（groups of subjects），"
+          "个体数据超出不必然代表作业不可接受。")
     for muscle in pair:
         print(f"\n  【{muscle}】")
         head = f"  {'超概率 P':>10}"
@@ -1361,8 +1372,11 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
         for p, name in ((10.0, "peak (P90)"), (50.0, "median (P50)"),
                         (90.0, "static (P10)")):
             ax.axvline(p, color="#999999", ls=":", lw=0.9, zorder=1)
+            # 标出两种口径：横轴是超概率，而 Jonsson 原文用 P（=分位），
+            # 两者互补（P + 超概率 = 1）—— 原文的 P=0.9 就是这里的 10%。
             ax.text(p + 1.0, top * 0.985,
-                    f"{name}\nexceeded {p:g}% of time",
+                    f"{name}\nJonsson P={1 - p / 100.0:.1f}"
+                    f"  (exceeded {p:g}% of time)",
                     fontsize=7, color="#666666", va="top", ha="left")
         out = Path(out_dir) / "apdf_compare.png"
         FigureCanvasAgg(fig).print_png(str(out))

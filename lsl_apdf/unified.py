@@ -319,7 +319,22 @@ def write_load_disparity(rows, pair, session_dir) -> dict:
     a, b = (list(pair) + [None, None])[:2]
     ra, rb = by.get(a), by.get(b)
     out: dict = {"pair": [a, b]}
-    limits = {"static": 5.0, "median": 14.0, "peak": 70.0}   # 上限，需核对原文
+    limits = {"static": 5.0, "median": 14.0, "peak": 70.0}
+    """Jonsson 参考限值（"不得超过"档）。
+
+    原文：Jonsson B. (1982) "Measurement and evaluation of local muscular strain
+    in the shoulder during constrained work", J. Human Ergol. 11(1):73-88, p.80
+    —— 该处引自 Jonsson (1978)，两级表述：
+        static  not exceed 2%  / must not exceed 5%  MVC
+        median  not exceed 10% / must not exceed 14% MVC
+        peak    not exceed 50% / must not exceed 70% MVC
+    适用范围：受限作业（constrained work）持续 **1 小时以上**。
+    这里用"must not exceed"那一档；原文另有 10 分钟/整日两档（Fig. 见原文）。
+
+    ⚠️ 原文明确强调：**这些限值只适用于群体分析**（"only ... from groups of
+    subjects"）；个体结果超出不必然说明作业不可接受。单个被试的实验在引用
+    时必须说明这一点。
+    """
     for key, att in (("static", "static_pct"), ("median", "median_pct"),
                      ("peak", "peak_pct")):
         va = getattr(ra, att, float("nan")) if ra else float("nan")
