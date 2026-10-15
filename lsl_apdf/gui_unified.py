@@ -460,17 +460,27 @@ class UnifiedGuiApp:
         NavigationToolbar2Tk(canvas, left).update()
         self.canvas = canvas
 
-        right = ttk.Frame(mid, width=300)
+        right = ttk.Frame(mid, width=350)
         right.pack(side=RIGHT, fill=Y, padx=(10, 0))
 
-        summ = ttk.LabelFrame(right, text="APDF levels (%MVC)", padding=6)
+        summ = ttk.LabelFrame(right, text="APDF load levels (%MVC)", padding=6)
         summ.pack(fill=X, pady=6)
+        # Jonsson(1982) 的三个负荷水平，一个都不能少：
+        #   static = 幅值分布 P10（90% 时间超过的水平）
+        #   median = P50
+        #   peak   = P90（10% 时间超过的水平）
+        # 之前只做了 median/peak 两列 —— 而 static 是"持续性负荷"的判据，
+        # 恰恰是最需要看的一个。
         self.apdf_tree = ttk.Treeview(
-            summ, columns=("m", "p50", "p90"), show="headings", height=5)
-        for c, t, w in (("m", "Muscle", 70), ("p50", "Median", 80), ("p90", "Peak", 80)):
+            summ, columns=("m", "p10", "p50", "p90"),
+            show="headings", height=5)
+        for c, t, w in (("m", "Muscle", 66), ("p10", "Static P10", 82),
+                        ("p50", "Median P50", 86), ("p90", "Peak P90", 78)):
             self.apdf_tree.heading(c, text=t)
             self.apdf_tree.column(c, width=w, anchor="e")
         self.apdf_tree.pack(fill=X)
+        ttk.Label(summ, text="低于 5 / 14 / 70 %MVC 为参考限值（Jonsson 1982）",
+                  foreground="#777777", font=("", 8)).pack(anchor="w", pady=(2, 0))
 
         dpi = ttk.LabelFrame(right, text="Mouse sensitivity", padding=6)
         dpi.pack(fill=X)
@@ -824,12 +834,15 @@ class UnifiedGuiApp:
                 self.apdf_tree.delete(item)
             # 选中的两块排在最前并用 ● 标出
             rows = sorted(s.apdf, key=lambda r: (r.muscle not in pair, r.muscle))
+
+            def fmt(v):
+                return "—" if v is None or not np.isfinite(v) else f"{v:.1f}"
+
             for r in rows:
                 mark = "● " if r.muscle in pair else "   "
                 self.apdf_tree.insert("", END, values=(
                     mark + r.muscle,
-                    "—" if not np.isfinite(r.median_pct) else f"{r.median_pct:.1f}",
-                    "—" if not np.isfinite(r.peak_pct) else f"{r.peak_pct:.1f}"))
+                    fmt(r.static_pct), fmt(r.median_pct), fmt(r.peak_pct)))
 
         msgs = s.messages
         if msgs and self._logged != len(msgs):
