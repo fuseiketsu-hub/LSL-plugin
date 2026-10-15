@@ -1198,25 +1198,45 @@ def cmd_compare_direction(args: argparse.Namespace) -> int:
 
     pair = info[0]["pair"]
     a, b = pair[0], pair[1]
-    print("=" * 96)
-    print("锁档会话对比（方向验证）")
-    print("=" * 96)
-    print(f"  {'条件':<16}{'会话目录':<40}{a + ' P50':>10}{b + ' P50':>10}"
-          f"{'|差|':>8}{a + ' P90':>10}{b + ' P90':>10}{'SD(A/B)':>12}")
+    print("=" * 104)
+    print("锁档会话对比（方向验证）—— 三个负荷水平**并排全部呈现**")
+    print("=" * 104)
+    print("  按 Jonsson(1982) 的判据，三个水平各自与本水平的限值比较；"
+          "这里不把三者合成任何单一指标。")
+    print("  限值（不得超过档）：static 5 / median 14 / peak 70 %MVC —— "
+          "只适用于群体分析。")
+    print()
+    print(f"  {'条件':<14}{'会话目录':<32}{'水平':<8}"
+          f"{a:>9}{b:>9}{'|差|':>8}{a + '/限':>9}{b + '/限':>9}{'超标':>10}")
+    limits = {"static": 5.0, "median": 14.0, "peak": 70.0}
     for lab, s in zip(labels, info):
-        m = s["levels"].get("median")
-        k = s["levels"].get("peak")
-        if not m:
-            continue
-        sd_a = s["vol"][a]
-        sd_b = s["vol"][b]
-        sd_txt = ("—" if (not np.isfinite(sd_a) or not np.isfinite(sd_b))
-                  else f"{sd_a:.2f}/{sd_b:.2f}")
-        print(f"  {lab:<16}{s['dir'].name:<40}{m['A']:>10.2f}{m['B']:>10.2f}"
-              f"{m['absdiff']:>8.2f}{k['A']:>10.2f}{k['B']:>10.2f}"
-              f"{sd_txt:>12}")
-    if not np.isfinite(info[0]["vol"].get(a, float("nan"))):
-        print("  （SD 无法计算：会话太短，至少需要约 40 s 以上的数据）")
+        any_row = False
+        for lv in ("static", "median", "peak"):
+            d = s["levels"].get(lv)
+            if not d:
+                continue
+            va, vb = d["A"], d["B"]
+            ra, rb = va / limits[lv], vb / limits[lv]
+            over = [n for n, r in ((a, ra), (b, rb)) if r > 1.0]
+            over_txt = ("、".join(over) if over else "—")
+            head = (f"  {lab:<14}{s['dir'].name:<32}" if not any_row
+                    else " " * 46)
+            print(f"{head}{lv:<8}{va:>9.2f}{vb:>9.2f}{d['absdiff']:>8.2f}"
+                  f"{ra:>9.2f}{rb:>9.2f}{over_txt:>10}")
+            any_row = True
+        sd_a, sd_b = s["vol"][a], s["vol"][b]
+        if np.isfinite(sd_a) and np.isfinite(sd_b):
+            print(" " * 46 + f"会话内 SD(P50): {a} {sd_a:.2f} / {b} {sd_b:.2f}"
+                  f"   （判读：变化需 >1×SD 才值得当证据）")
+    print()
+    print("  超标个数（计数，非加权合成）：")
+    for lab, s in zip(labels, info):
+        cnt_a = sum(1 for lv, d in s["levels"].items()
+                    if d["A"] / limits.get(lv, 1e9) > 1.0)
+        cnt_b = sum(1 for lv, d in s["levels"].items()
+                    if d["B"] / limits.get(lv, 1e9) > 1.0)
+        print(f"    {lab:<14}{a}: {cnt_a}/3 个水平超标    "
+              f"{b}: {cnt_b}/3 个水平超标")
 
     print()
     print("  每块肌肉在两次条件之间的变化（中位负荷 P50，单位 %MVC）：")
