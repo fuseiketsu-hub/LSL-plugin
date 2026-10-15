@@ -448,12 +448,29 @@ class UnifiedGuiApp:
         left.pack(side=LEFT, fill=BOTH, expand=True)
         self.fig = Figure(figsize=(8.0, 6.2), dpi=100, constrained_layout=True)
         self.ax_apdf = self.fig.add_subplot(111)
-        self.ax_apdf.set_title("APDF curve (X = amplitude %MVC, Y = exceedance P%)")
-        self.ax_apdf.set_xlabel("%MVC")
-        self.ax_apdf.set_ylabel("Exceedance probability P (% of time above level)")
-        self.ax_apdf.set_xlim(0, 100)
-        self.ax_apdf.set_ylim(0, 100)
+        # 坐标轴按**原文的约定**（Jonsson 1982, Fig. 6/7）：
+        #   X = 幅值（%MVC），Y = 概率 P（幅值不超过该水平的时间比例，0→1）
+        # 曲线因此从**左下升到右上**。我先前画成"X=超概率、Y=幅值"——
+        # 那是转置并取了补，方向和形状都与文献不一致。
+        self.ax_apdf.set_title("APDF（X = 幅值, Y = P = 不超过该水平的时间比例）")
+        self.ax_apdf.set_xlabel("幅值 (%MVC)")
+        self.ax_apdf.set_ylabel("P  (proportion of time at or below the level)")
+        self.ax_apdf.set_xlim(0, 80)
+        self.ax_apdf.set_ylim(0.0, 1.0)
         self.ax_apdf.grid(alpha=0.25)
+        # 参考元素只画一次（先前在 _render 里每帧 axvline，会在一次会话里
+        # 累积成百上千条重复线）。
+        for p, name in ((0.1, "static P10"), (0.5, "median P50"),
+                        (0.9, "peak P90")):
+            self.ax_apdf.axhline(p, color="#aaaaaa", ls=":", lw=0.9, zorder=1)
+            self.ax_apdf.text(0.6, p + 0.015, f"{name}  (P={p:g})",
+                              fontsize=7, color="#888888", va="bottom")
+        # Jonsson(1982) 的"不得超过"限值点：曲线跑到这些点的右侧即超标
+        self.ax_apdf.plot([5.0, 14.0, 70.0], [0.1, 0.5, 0.9], ls="none",
+                          marker="x", ms=7, mew=1.6, color="#cc0000",
+                          zorder=4, label="Jonsson limit (must not exceed)")
+        self.ax_apdf.axvline(float(self.cfg.high_thr), color="#e0a800",
+                             ls="--", lw=1.1, zorder=1)
         canvas = FigureCanvasTkAgg(self.fig, master=left)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=BOTH, expand=True)
@@ -873,11 +890,15 @@ class UnifiedGuiApp:
                     self._apdf_lines[m] = line
                     self.ax_apdf.legend(fontsize=9, loc="upper right", frameon=False)
                 self._style_pair_line(line, m, pair, i, base_lw=1.6)
-                line.set_data(xy[1], xy[0])
+                # 原文 Fig.6/7 的约定：X = 幅值，Y = P（不超过该水平的时间比例）
+                # curves 里存的是 (超概率 %, 幅值 %MVC)，所以
+                #   x = 幅值（反转让它递增 → 曲线从左下升到右上）
+                #   y = 1 − 超概率/100  = Jonsson 的 P
+                line.set_data(xy[1][::-1], 1.0 - xy[0][::-1] / 100.0)
             tops = [r.peak_pct for r in s.apdf if np.isfinite(r.peak_pct)]
-            self.ax_apdf.set_xlim(0, (max(tops) if tops else 10.0) * 1.2)
-            self.ax_apdf.set_ylim(0, 100)
-            self.ax_apdf.axvline(s.threshold, color="#e0a800", ls="--", lw=1.1)
+            # 右边界要容得下 peak 限值点(70)，否则看不到最上面那个判据
+            self.ax_apdf.set_xlim(0, max(max(tops) if tops else 10.0, 74.0) * 1.05)
+            self.ax_apdf.set_ylim(0.0, 1.0)
             self.canvas.draw_idle()
 
     @staticmethod

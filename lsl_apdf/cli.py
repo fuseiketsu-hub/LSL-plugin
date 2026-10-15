@@ -1307,21 +1307,19 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
         print("    该文件是本次改动才开始写出的，重新跑一次会话即可）")
         return
 
-    probs = [5.0, 10.0, 25.0, 50.0, 75.0, 90.0, 95.0]
+    probs = [0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95]
     print()
-    print("=" * 88)
-    print("APDF 曲线比较（超概率 P → 幅值 %MVC）")
-    print("=" * 88)
+    print("=" * 92)
+    print("APDF 各水平的幅值（按 Jonsson 的 P 读取：P = 不超过该水平的时间比例）")
+    print("=" * 92)
     print("  水平定义（Jonsson 1982, J. Human Ergol. 11(1):73-88，原文以 P 表示"
           "「幅值不超过该水平的时间比例」= 分位）：")
     print("    static  P=0.1  （肌休息 ≤10% 时间，即 90% 时间在此水平之上）= P10")
     print("    median  P=0.5                                                = P50")
     print("    peak    P=0.9  （收缩高于此水平的时间 ≤10%）                 = P90")
-    print("  本图横轴是**超概率**（该水平被超过的时间比例），与原文的 P 互补"
-          "（P + 超概率 = 1）：")
-    print("    static = 被超过 90% 时间的水平 ｜ peak = 被超过 10% 时间的水平")
-    print("  ⚠ 注意不要混用：原文的「P=0.1」是 static（低），"
-          "而超概率「10%」是 peak（高）——两套口径的数字是互补的。")
+    print("  图表坐标（同原文 Fig.6/7）：X = 幅值 %MVC，Y = P（0→1），"
+          "曲线从左下升到右上；")
+    print("  三条水平虚线即 P=0.1/0.5/0.9 的读取位置，向左对齐到 X 轴读出三个水平。")
     print("  参考限值（原文 p.80，引自 Jonsson 1978；适用：持续 ≥1 小时的受限作业）：")
     print("    static  不超过 2%， 不得超过 5%  MVC")
     print("    median  不超过 10%，不得超过 14% MVC")
@@ -1330,23 +1328,32 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
           "个体数据超出不必然代表作业不可接受。")
     for muscle in pair:
         print(f"\n  【{muscle}】")
-        head = f"  {'超概率 P':>10}"
+        head = f"  {'P (Jonsson)':>12}"
         for lab in labels:
             head += f"{lab:>12}"
         if len(labels) >= 2:
             head += f"{'后-前':>10}"
         print(head)
         for p in probs:
-            line = f"  {p:>9.0f}%"
+            line = f"  {p:>11.2f}"
             vals = []
             for _, c in curves:
                 xy = c.get(muscle)
-                v = _level_at(xy[0], xy[1], p) if xy else float("nan")
+                # 曲线按**超概率**存储 → Jonsson 的 P 对应超概率 (1−P)
+                v = (_level_at(xy[0], xy[1], (1.0 - p) * 100.0)
+                     if xy else float("nan"))
                 vals.append(v)
                 line += f"{v:>12.2f}" if np.isfinite(v) else f"{'—':>12}"
             if len(vals) >= 2 and all(np.isfinite(v) for v in vals):
                 line += f"{vals[-1] - vals[0]:>+10.2f}"
-            print(line)
+            tag = ""
+            if abs(p - 0.1) < 1e-9:
+                tag = "   ← static"
+            elif abs(p - 0.5) < 1e-9:
+                tag = "   ← median"
+            elif abs(p - 0.9) < 1e-9:
+                tag = "   ← peak"
+            print(line + tag)
 
     try:
         import matplotlib
@@ -1358,7 +1365,7 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
         rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
         rcParams["axes.unicode_minus"] = False
         muscle_colors = ["#1f77b4", "#d62728"]
-        fig = Figure(figsize=(9.0, 5.6), dpi=130, constrained_layout=True)
+        fig = Figure(figsize=(9.2, 5.8), dpi=130, constrained_layout=True)
         ax = fig.add_subplot(1, 1, 1)
         for idx, (d, c) in enumerate(curves):
             if not c:
@@ -1367,7 +1374,10 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
                 xy = c.get(muscle)
                 if xy is None:
                     continue
-                ax.plot(xy[0], xy[1], ls="--" if idx == 0 else "-",
+                # 原文 Fig.6/7 的约定：X = 幅值，Y = P（不超过该水平的时间比例）。
+                # 存储是 (超概率 %, 幅值 %MVC) → 反转 + 取补 ⇒ 曲线从左下升到右上。
+                ax.plot(xy[1][::-1], 1.0 - xy[0][::-1] / 100.0,
+                        ls="--" if idx == 0 else "-",
                         color=muscle_colors[j % len(muscle_colors)],
                         # 先跑的那条画**更粗**并放在上层：两条完全重合时
                         # （例如该条件没有真正改变负荷）虚线仍能露出来，
@@ -1375,35 +1385,30 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
                         lw=2.6 if idx == 0 else 1.5,
                         zorder=3 if idx == 0 else 2,
                         label=f"{labels[idx]} · {muscle}")
-        ax.set_xlabel("超概率 P (%)")
-        ax.set_ylabel("幅值 (%MVC)")
-        ax.set_title("APDF 曲线比较（同一肌肉 实线 vs 虚线 = 该条件的影响）")
-        ax.set_xlim(0, 100)
+        ax.set_xlabel("幅值 (%MVC)")
+        ax.set_ylabel("P  (proportion of time at or below the level)")
+        ax.set_title("APDF 曲线比较（坐标约定同 Jonsson 1982 Fig.6/7）")
+        ax.set_xlim(0, 78)
+        ax.set_ylim(0.0, 1.0)
         ax.grid(alpha=0.25)
-        # 图例放左下：右上要给 "static = exceeded 90% of time" 的标注让位，
-        # 否则两段文字会叠在一起（左下区域曲线不在那里）。
-        ax.legend(fontsize=8, loc="lower left", frameon=False)
-        # 标出 Jonsson(1982) 读三个标准负荷水平的位置。写清"被超过 X% 时间"
-        # 是必须的：超概率 10% 得到的是 peak（高），90% 得到的是 static（低），
-        # 与分位 P90 / P10 对应 —— 数字交叉，图上不标就容易被读反。
-        lo, hi = ax.get_ylim()
-        ax.set_ylim(lo, hi + (hi - lo) * 0.16)
-        top = ax.get_ylim()[1]
-        for p, name in ((10.0, "peak (P90)"), (50.0, "median (P50)"),
-                        (90.0, "static (P10)")):
-            ax.axvline(p, color="#999999", ls=":", lw=0.9, zorder=1)
-            # 标出两种口径：横轴是超概率，而 Jonsson 原文用 P（=分位），
-            # 两者互补（P + 超概率 = 1）—— 原文的 P=0.9 就是这里的 10%。
-            ax.text(p + 1.0, top * 0.985,
-                    f"{name}\nJonsson P={1 - p / 100.0:.1f}"
-                    f"  (exceeded {p:g}% of time)",
-                    fontsize=7, color="#666666", va="top", ha="left")
+        # 三个标准负荷水平的读取位置：Y = 0.1 / 0.5 / 0.9（水平线，向右读 X）
+        for p, name in ((0.1, "static P10"), (0.5, "median P50"),
+                        (0.9, "peak P90")):
+            ax.axhline(p, color="#aaaaaa", ls=":", lw=0.9, zorder=1)
+            ax.text(0.6, p + 0.012, f"{name}  (P={p:g})",
+                    fontsize=7.5, color="#888888", va="bottom")
+        # Jonsson "不得超过" 限值点：曲线位于这些点的右侧 = 该水平超标
+        ax.plot([5.0, 14.0, 70.0], [0.1, 0.5, 0.9], ls="none", marker="x",
+                ms=8, mew=1.6, color="#cc0000", zorder=4,
+                label="Jonsson limit (must not exceed)")
+        ax.legend(fontsize=8, loc="lower right", frameon=False)
         out = Path(out_dir) / "apdf_compare.png"
         FigureCanvasAgg(fig).print_png(str(out))
         print()
         print(f"  叠加图已保存：{out}")
         print("    同一肌肉的实线 vs 虚线差异 = 条件对该肌肉负荷分布的影响；")
-        print("    曲线整体右移（同样超概率下幅值更高）= 该肌肉负荷变重。")
+        print("    曲线整体**右移**（同一 P 下幅值更高）= 该肌肉负荷变重；")
+        print("    曲线若跑到红色 ×（Jonsson 限值点）的右侧 = 该水平超标。")
     except Exception as exc:                       # pragma: no cover - 绘图环境
         print(f"  （曲线图渲染失败：{exc}）")
 

@@ -384,7 +384,7 @@ peak   = 被超过 10% 时间的水平（= P90）   ← 原文 P=0.9
 | `apdf_summary.csv` | 表头自带口径：`static_P10_exceeded90pct_mvc` / `median_P50_exceeded50pct_mvc` / `peak_P90_exceeded10pct_mvc` |
 | `load_disparity.csv` | `level` 列取值 `static` / `median` / `peak`，给出 A/B 值与超出参考限值的倍数（限值 = 上表的"不得超过"档） |
 | `compare-direction` | 输出开头印出定义、两套口径的互补关系、以及限值与群体分析的限制 |
-| `apdf_compare.png` | 图上用竖虚线标出 10% / 50% / 90% 三个**超概率读取位置**，并同时标注对应的 Jonsson P 值 |
+| `apdf_compare.png` | 坐标约定与原文 Fig.6/7 一致：**X = 幅值 (%MVC)，Y = P（不超过该水平的时间比例）**，曲线从左下升到右上；三条水平虚线标出 P=0.1/0.5/0.9 的读取位置，红色 × 为 Jonsson 三个"不得超过"限值点（曲线位于其右侧 = 该水平超标） |
 
 ## 可选补充量
 
