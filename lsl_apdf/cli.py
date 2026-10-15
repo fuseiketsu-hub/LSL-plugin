@@ -1110,6 +1110,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="two or more session directories produced by unified/session")
     p_cmp.add_argument("--labels",
                        help="comma-separated labels, e.g. \"800,1200\"")
+    p_cmp.add_argument("--output", help="where to write apdf_compare.png (default: cwd)")
     p_cmp.set_defaults(func=cmd_compare_direction)
 
     p_self = sub.add_parser("selftest", help="End-to-end self-test (algorithms + environment)")
@@ -1232,7 +1233,118 @@ def cmd_compare_direction(args: argparse.Namespace) -> int:
     print("    · 变化是否可信，取决于它相对「会话内 SD」的倍数：")
     print("      1x 以内基本是噪声；个位数倍以上才值得当方向证据。")
     print("      必要时重复几次，或延长单次时长。")
+
+    _compare_apdf_curves(
+        info, labels, pair,
+        Path(args.output) if getattr(args, "output", None) else Path.cwd())
     return 0
+
+
+def _load_curve(session_dir: Path) -> dict:
+    """读 ``apdf_curve.csv``（长表）→ {muscle: (probability, level)}。"""
+    import csv as _csv
+
+    path = session_dir / "apdf_curve.csv"
+    if not path.exists():
+        return {}
+    out: dict[str, list] = {}
+    with path.open(encoding="utf-8") as fh:
+        for row in _csv.DictReader(fh):
+            try:
+                slot = out.setdefault(row["muscle"], [[], []])
+                slot[0].append(float(row["probability_pct"]))
+                slot[1].append(float(row["level_pct_mvc"]))
+            except (KeyError, ValueError):
+                continue
+    return {m: (np.asarray(p), np.asarray(l)) for m, (p, l) in out.items()}
+
+
+def _level_at(prob: np.ndarray, level: np.ndarray, p: float) -> float:
+    """曲线在超概率 p 处的幅值（曲线按概率递增存储 → 直接插值）。"""
+    if prob.size == 0:
+        return float("nan")
+    return float(np.interp(p, prob, level))
+
+
+def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
+    """比较两次条件的 **APDF 曲线**：标准概率处取值表 + 叠加图。
+
+    汇总数字只给 3 个百分位点；曲线比较看的是**整条曲线的移动** —— 那才是
+    "负荷是否在两块肌肉间重新分配"的直接证据。
+    """
+    curves = [(s["dir"], _load_curve(s["dir"])) for s in info]
+    if not any(c for _, c in curves):
+        print()
+        print("  （两次会话都没有 apdf_curve.csv，无法比较曲线 ——")
+        print("    该文件是本次改动才开始写出的，重新跑一次会话即可）")
+        return
+
+    probs = [5.0, 10.0, 25.0, 50.0, 75.0, 90.0, 95.0]
+    print()
+    print("=" * 88)
+    print("APDF 曲线比较（超概率 P → 幅值 %MVC）")
+    print("=" * 88)
+    for muscle in pair:
+        print(f"\n  【{muscle}】")
+        head = f"  {'超概率 P':>10}"
+        for lab in labels:
+            head += f"{lab:>12}"
+        if len(labels) >= 2:
+            head += f"{'后-前':>10}"
+        print(head)
+        for p in probs:
+            line = f"  {p:>9.0f}%"
+            vals = []
+            for _, c in curves:
+                xy = c.get(muscle)
+                v = _level_at(xy[0], xy[1], p) if xy else float("nan")
+                vals.append(v)
+                line += f"{v:>12.2f}" if np.isfinite(v) else f"{'—':>12}"
+            if len(vals) >= 2 and all(np.isfinite(v) for v in vals):
+                line += f"{vals[-1] - vals[0]:>+10.2f}"
+            print(line)
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        from matplotlib import rcParams
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
+
+        rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
+        rcParams["axes.unicode_minus"] = False
+        muscle_colors = ["#1f77b4", "#d62728"]
+        fig = Figure(figsize=(9.0, 5.6), dpi=130, constrained_layout=True)
+        ax = fig.add_subplot(1, 1, 1)
+        for idx, (d, c) in enumerate(curves):
+            if not c:
+                continue
+            for j, muscle in enumerate(pair):
+                xy = c.get(muscle)
+                if xy is None:
+                    continue
+                ax.plot(xy[0], xy[1], ls="--" if idx == 0 else "-",
+                        color=muscle_colors[j % len(muscle_colors)],
+                        # 先跑的那条画**更粗**并放在上层：两条完全重合时
+                        # （例如该条件没有真正改变负荷）虚线仍能露出来，
+                        # 否则实线会把它整个盖住，看不出"没有变化"。
+                        lw=2.6 if idx == 0 else 1.5,
+                        zorder=3 if idx == 0 else 2,
+                        label=f"{labels[idx]} · {muscle}")
+        ax.set_xlabel("超概率 P (%)")
+        ax.set_ylabel("幅值 (%MVC)")
+        ax.set_title("APDF 曲线比较（同一肌肉 实线 vs 虚线 = 该条件的影响）")
+        ax.set_xlim(0, 100)
+        ax.grid(alpha=0.25)
+        ax.legend(fontsize=8, loc="upper right", frameon=False)
+        out = Path(out_dir) / "apdf_compare.png"
+        FigureCanvasAgg(fig).print_png(str(out))
+        print()
+        print(f"  叠加图已保存：{out}")
+        print("    同一肌肉的实线 vs 虚线差异 = 条件对该肌肉负荷分布的影响；")
+        print("    曲线整体右移（同样超概率下幅值更高）= 该肌肉负荷变重。")
+    except Exception as exc:                       # pragma: no cover - 绘图环境
+        print(f"  （曲线图渲染失败：{exc}）")
 
 
 def main(argv: list[str] | None = None) -> int:

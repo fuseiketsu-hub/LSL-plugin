@@ -47,7 +47,8 @@ from .emg_link import MvcCsvRecorder
 from .session_runner import IntegratedConfig, check_contract, session_dir_for
 
 __all__ = ["DpiActuator", "UnifiedSession", "run_unified", "APDF_COLUMNS",
-           "compute_muscle_apdf", "make_demo_source", "thr_default"]
+           "compute_muscle_apdf", "apdf_rows_and_curves", "make_demo_source",
+           "write_apdf_curve", "write_load_disparity", "thr_default"]
 
 #: 与插件原版 ``sens_log_*.csv`` 相同的列，保证 ``tools/plot_log.py`` 还能画
 APDF_COLUMNS = [
@@ -280,6 +281,29 @@ def apdf_rows_and_curves(
     return rows, curves
 
 
+def write_apdf_curve(curves, muscles, session_dir) -> Path | None:
+    """把 **APDF 曲线本身**落盘（长表：muscle, probability_pct, level_pct_mvc）。
+
+    只存 P10/P50/P90 三个点没法比较"曲线形状" —— 而"改变 DPI 是否把负荷在两块
+    肌肉之间重新分配"恰恰表现为**整条曲线的平移/变形**，不只是三个点移动。
+    没有这个文件，方向验证就只能比三个数字。
+    """
+    path = Path(session_dir) / "apdf_curve.csv"
+    wrote = False
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["muscle", "probability_pct", "level_pct_mvc"])
+        for m in muscles:
+            xy = curves.get(m)
+            if xy is None:
+                continue
+            prob, level = xy
+            for p, lv in zip(prob, level):
+                w.writerow([m, f"{float(p):.4f}", f"{float(lv):.4f}"])
+            wrote = True
+    return path if wrote else None
+
+
 def write_load_disparity(rows, pair, session_dir) -> dict:
     """写出**肌间负荷差异** —— 负荷再分配研究的核心验证量。
 
@@ -508,8 +532,11 @@ class UnifiedSession:
             self.printer("\n  Received Ctrl+C; shutting down safely...")
         finally:
             actuator.reset(now - t0)
-            apdf_rows = self._compute_apdf(accum, pipeline.muscles)
+            apdf_rows, apdf_curves = apdf_rows_and_curves(
+                accum, pipeline.muscles, cfg.high_thr, cfg.signal)
             self._write_apdf(apdf_rows)
+            curve_path = write_apdf_curve(apdf_curves, pipeline.muscles,
+                                          self.session_dir)
             policy.close()
             recorder.close()
             actuator.close()
@@ -538,10 +565,12 @@ class UnifiedSession:
                     "pctmvc_csv": str(recorder.path),
                     "sens_log": str(actuator.path),
                     "balance_events": policy.log_path,
-                    "apdf_summary": str(self.session_dir / "apdf_summary.csv"),
+                    "load_disparity": str(self.session_dir / "load_disparity.csv"),
                 },
                 "finished_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             }
+            if curve_path:
+                self.summary["files"]["apdf_curve"] = str(curve_path)
             (self.session_dir / "session_summary.json").write_text(
                 json.dumps(self.summary, indent=2, ensure_ascii=False, default=str),
                 encoding="utf-8")
