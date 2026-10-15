@@ -130,6 +130,16 @@ class TestUnifiedGui(unittest.TestCase):
             app._render(snap)             # 渲染一帧不应抛异常
             app._stop()
             engine.join(timeout=15.0)
+            # 收尾阶段（finally）也要检查：之前这里有个 NameError（漏 import json），
+            # 只在 stop **之后**才发生，所以循环里查 engine.error 抓不到。
+            self.assertIsNone(engine.error, f"收尾阶段异常：{engine.error}")
+            # 界面会话必须写出与命令行会话**相同**的产物，
+            # 否则 compare-direction 拿到界面跑的目录会说"找不到 load_disparity.csv"。
+            for name in ("apdf_summary.csv", "apdf_curve.csv",
+                         "load_disparity.csv", "session_summary.json",
+                         "pctmvc.csv"):
+                self.assertTrue((engine.session_dir / name).exists(),
+                                f"缺少产物 {name}")
         finally:
             mb.showerror = orig
 

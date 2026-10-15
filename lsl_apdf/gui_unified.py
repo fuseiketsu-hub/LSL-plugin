@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import sys
 import threading
 import time
@@ -44,7 +45,8 @@ from .dsp import GrowableF64
 from .session_runner import IntegratedConfig, check_contract, session_dir_for
 from .sources import (PYLSL_AVAILABLE, LSLSource, OpenSignalsSource,
                       StreamMeta, discover_streams, is_opensignals_txt)
-from .unified import DpiActuator, apdf_rows_and_curves, make_demo_source
+from .unified import (DpiActuator, apdf_rows_and_curves, make_demo_source,
+                      write_apdf_curve, write_load_disparity)
 
 rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
 rcParams["axes.unicode_minus"] = False
@@ -243,6 +245,12 @@ class _Engine(threading.Thread):
                 w.writerow(type(rows[0]).header() if rows else [])
                 for r in rows:
                     w.writerow(r.as_row())
+            # 与命令行会话**产物一致**：界面会话过去只写 apdf_summary，
+            # 于是 compare-direction 拿到界面跑的目录会说"找不到
+            # load_disparity.csv"，曲线也无从比较 —— 而界面才是日常用法。
+            curve_path = write_apdf_curve(curves, pipeline.muscles,
+                                          self.session_dir)
+            disparity = write_load_disparity(rows, cfg.pair, self.session_dir)
             with self._lock:                       # 收尾后界面还能看到最终曲线
                 self._apdf, self._curves = rows, curves
                 self._snap.apdf = rows
@@ -254,8 +262,35 @@ class _Engine(threading.Thread):
                 self.source.close()
             except Exception:
                 pass
-            self.summary = {"session_dir": str(self.session_dir)}
+            self.summary = {
+                "mode": "unified GUI (single process)",
+                "session_dir": str(self.session_dir),
+                "duration_sec": round(time.time() - t0, 2),
+                "dry_run": cfg.dry_run,
+                "fixed_level": getattr(cfg, "fixed_level", ""),
+                "channels": cfg.channels,
+                "mvc": dict(cfg.mvc),
+                "pair": list(cfg.pair),
+                "pctmvc_rows": sum(1 for _ in self._pct_buf) or None,
+                "balance": dict(policy.stats),
+                "final_level": actuator.level,
+                "apdf": {r.muscle: r.as_row() for r in rows},
+                "load_disparity": disparity,
+                "files": {
+                    "pctmvc_csv": str(self.session_dir / "pctmvc.csv"),
+                    "apdf_summary": str(self.session_dir / "apdf_summary.csv"),
+                    "apdf_curve": str(curve_path) if curve_path else None,
+                    "load_disparity": str(self.session_dir / "load_disparity.csv"),
+                    "balance_events": policy.log_path,
+                },
+                "finished_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            (self.session_dir / "session_summary.json").write_text(
+                json.dumps(self.summary, indent=2, ensure_ascii=False,
+                           default=str), encoding="utf-8")
             self.log("Session ended; base level restored")
+            self.log("Artifacts: apdf_summary.csv / apdf_curve.csv / "
+                     "load_disparity.csv / session_summary.json")
 
 
 def _read_new(policy, offset: list, header: list) -> list[dict]:

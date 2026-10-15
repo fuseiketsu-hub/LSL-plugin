@@ -1132,7 +1132,15 @@ def cmd_compare_direction(args: argparse.Namespace) -> int:
     for d in dirs:
         if not (d / "load_disparity.csv").exists():
             print(f"找不到 {d / 'load_disparity.csv'}")
-            print("（该命令需要统一插件/集成会话产出的会话目录）")
+            print()
+            print("  可能原因：")
+            print("   · 这个会话是用**旧版本**跑的 —— load_disparity.csv / "
+                  "apdf_curve.csv 是后来才加入的产物")
+            print("   · 或者界面会话跑在旧版本上（界面此前不写这两个文件）")
+            print("  处理：用当前版本**重新跑一次会话**，再对新目录做对比。")
+            print()
+            print("  （已有的旧会话无法补救 —— 曲线与负荷差异当时没有落盘，"
+                  "数据不在磁盘上。）")
             return 2
 
     def summarise(d: Path) -> dict:
