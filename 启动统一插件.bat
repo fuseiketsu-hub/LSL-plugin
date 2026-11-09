@@ -16,10 +16,10 @@ echo   UNIFIED PLUGIN  (single process, no TCP)
 echo ============================================================
 echo.
 echo   signal side  : LSL / synthetic -^> filter -^> RMS -^> %MVC -^> APDF
-echo   decision     : high-exposure area of ECU vs FDS -^> crossings
+echo   decision     : APDF median level (P50) of UT vs ECU -^> crossings
 echo   execution    : 800 ^<-^> 1200 DPI ramp, written in-process
 echo   driver       : DRY-RUN (nothing written to Raw Accel)
-echo   source       : synthetic 4-muscle (no hardware needed)
+echo   source       : synthetic 2-muscle (ECU/UT, no hardware needed)
 echo   takes        : about 80 seconds
 echo.
 echo   Output: sessions\session_*\  with

@@ -61,16 +61,18 @@ class IntegratedConfig:
     """一次集成会话的全部参数（**两边共用这一份**）。"""
 
     plugin_dir: str = "plugin"
-    channels: str = "A1=ECU,A2=FDS,A3=UT,A4=EDC"
+    channels: str = "A1=ECU,A3=UT"
+    """通道映射。实验只用两块肌肉（ECU 在 A1、UT 在 A3）；
+    A2/A4 不分析 —— 保持物理接线位置不变，只读需要的那两路。"""
     mvc: dict[str, float] = field(default_factory=lambda: {
-        "ECU": 80.0, "FDS": 57.0, "UT": 83.0, "EDC": 59.0,
+        "ECU": 80.0, "UT": 83.0,
     })
 
     # --- balance 策略（写进插件配置） ---
     pair: list[str] = field(default_factory=lambda: ["UT", "ECU"])
     """实时比较的两块肌肉。实验定为 UT（斜方肌上束）vs ECU（桡侧腕伸肌）。"""
     direction: dict[str, str] = field(default_factory=lambda: {
-        "ECU": "up", "UT": "up", "FDS": "down", "EDC": "down",
+        "ECU": "up", "UT": "up",
     })
     high_thr: float = 20.0
     roll_window_sec: float = 300.0

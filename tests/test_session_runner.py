@@ -20,9 +20,9 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class TestShippedConfigs(unittest.TestCase):
-    """锁定正式实验的设定：A=UT、B=ECU，判据 = APDF 的 median 水平（P50）。
+    """锁定正式实验的设定：只用 ECU(A1) 与 UT(A3)，判据 = APDF 的 median（P50）。
 
-    这三条是实验设计决定，不是默认值巧合 —— 配置被改动时应当测试失败，
+    这些是实验设计决定，不是默认值巧合 —— 配置被改动时应当测试失败，
     而不是悄悄跑到别的肌肉/别的水平上去。
     """
 
@@ -35,13 +35,29 @@ class TestShippedConfigs(unittest.TestCase):
                 self.assertEqual(cfg.pair, ["UT", "ECU"])
                 self.assertEqual(cfg.metric, "apdf_level")
                 self.assertAlmostEqual(cfg.level_percentile, 50.0)
+                self.assertEqual(cfg.channels, "A1=ECU,A3=UT")
+                self.assertEqual(set(cfg.mvc), {"ECU", "UT"})
+                self.assertEqual(set(cfg.direction), {"ECU", "UT"})
                 self.assertEqual(check_contract(cfg), [])
+
+    def test_no_fds_or_edc_left_in_the_shipped_configs(self):
+        """实验只用两块肌肉 —— 配置里不该再有 FDS/EDC。"""
+        for name in ("session_config_real.json",
+                     "session_config_example.json",
+                     "session_config_linktest.json",
+                     "plugin/config.json"):
+            with self.subTest(config=name):
+                text = (ROOT / name).read_text(encoding="utf-8")
+                for gone in ("FDS", "EDC"):
+                    self.assertNotIn(gone, text)
 
     def test_code_defaults_match_the_experiment(self):
         cfg = IntegratedConfig()
         self.assertEqual(cfg.pair, ["UT", "ECU"])
         self.assertEqual(cfg.metric, "apdf_level")
         self.assertAlmostEqual(cfg.level_percentile, 50.0)
+        self.assertEqual(cfg.channels, "A1=ECU,A3=UT")
+        self.assertEqual(set(cfg.mvc), {"ECU", "UT"})
 
     def test_plugin_config_carries_the_pair_and_level(self):
         cfg = IntegratedConfig.load(ROOT / "session_config_real.json")

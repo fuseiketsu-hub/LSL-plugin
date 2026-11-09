@@ -44,8 +44,8 @@ class TestUnifiedGui(unittest.TestCase):
         for attr in ("dpi_label", "level_var", "apdf_tree", "log_text",
                      "mvc_row", "stream_combo", "start_btn"):
             self.assertTrue(hasattr(app, attr), attr)
-        # 每块肌肉一个 MVC 输入框
-        self.assertEqual(list(app._mvc_vars), ["ECU", "FDS", "UT", "EDC"])
+        # 每块**映射到的**肌肉一个 MVC 输入框（实验只用 ECU 与 UT）
+        self.assertEqual(list(app._mvc_vars), ["ECU", "UT"])
         # 默认必须是 DRY-RUN
         self.assertFalse(app.real_var.get())
         self.assertIn("Start", app.status_var.get() + app.start_btn.cget("text"))
@@ -78,10 +78,10 @@ class TestUnifiedGui(unittest.TestCase):
         cfg = self._cfg()
         app = UnifiedGuiApp(self.root, cfg)
         app._mvc_vars["ECU"].set("123.5")
-        app._mvc_vars["FDS"].set("77")
+        app._mvc_vars["UT"].set("77")
         self.assertTrue(app._read_form())
         self.assertAlmostEqual(cfg.mvc["ECU"], 123.5)
-        self.assertAlmostEqual(cfg.mvc["FDS"], 77.0)
+        self.assertAlmostEqual(cfg.mvc["UT"], 77.0)
 
         # 非数字 → 拒绝启动并解释
         app._mvc_vars["UT"].set("abc")
@@ -161,16 +161,16 @@ class TestUnifiedGui(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("different", captured.get("msg", ""))
 
-    def test_pair_selection_is_read_into_config(self):
-        """主界面选的 A/B 两块必须写进 cfg.pair（判定只用这两块）。"""
+    def test_pair_is_propagated_into_config(self):
+        """对比行显示的两块必须写进 cfg.pair（判定只用这两块）。"""
         from lsl_apdf.gui_unified import UnifiedGuiApp
 
         cfg = self._cfg()
         app = UnifiedGuiApp(self.root, cfg)
-        app.pair_a_var.set("FDS")
-        app.pair_b_var.set("UT")
+        self.assertEqual((app.pair_a_var.get(), app.pair_b_var.get()),
+                         ("UT", "ECU"))
         self.assertTrue(app._read_form())
-        self.assertEqual(cfg.pair, ["FDS", "UT"])
+        self.assertEqual(cfg.pair, ["UT", "ECU"])
 
     def test_pair_is_fixed_from_config_with_no_chooser(self):
         """对比对象由配置固定（当前 UT vs ECU），界面不再提供选择。

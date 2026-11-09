@@ -48,15 +48,15 @@
 
     "thresholds": {
       "up":   {"ECU": 16.0, "UT": null},
-      "down": {"FDS": 20.0}
+      "down": {}
     },
 
     "crossover": {
       "margin_mvc": 1.5,
-      "muscles": ["EDC", "ECU", "FDS", "UT"],
+      "muscles": ["ECU", "UT"],
       "reference": {
-        "800":  {"EDC": 11.0, "ECU": 12.0, "FDS": 11.0, "UT": 8.0},
-        "1200": {"EDC": 12.0, "ECU": 9.0,  "FDS": 15.0, "UT": 5.0}
+        "800":  {"ECU": 12.0, "UT": 8.0},
+        "1200": {"ECU": 9.0,  "UT": 5.0}
       }
     },
 
@@ -65,7 +65,7 @@
       "pair": ["UT", "ECU"],
       "metric": "apdf_level",
       "level_percentile": 50.0,
-      "direction": {"ECU": "up", "UT": "up", "FDS": "down", "EDC": "down"},
+      "direction": {"ECU": "up", "UT": "up"},
       "high_thr": 20.0,
       "roll_window_sec": 300.0,
       "baseline_sec": 300.0,
@@ -79,13 +79,12 @@
     },
 
     "opensignals": {
+      "_comment": "硬件仍发 4 路（A1..A4），但实验只分析 A1=ECU 与 A3=UT；A2/A4 保留占位名，保持位置对齐。",
       "n_channels": 4,
       "sampling_rate": 1000,
-      "channels": ["EDC", "ECU", "FDS", "UT"],
+      "channels": ["ECU", "spare_A2", "UT", "spare_A4"],
       "adc_to_mvc": {
-        "EDC": {"offset": 0.0, "scale": 0.001},
         "ECU": {"offset": 0.0, "scale": 0.001},
-        "FDS": {"offset": 0.0, "scale": 0.001},
         "UT":  {"offset": 0.0, "scale": 0.001}
       }
     },
