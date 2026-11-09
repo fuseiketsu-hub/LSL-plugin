@@ -375,35 +375,40 @@ class UnifiedGuiApp:
         self.mvc_row = ttk.Frame(row2)
         self.mvc_row.pack(side=LEFT, padx=6)
         self._rebuild_mvc_boxes()
-        # ---------- 第 3 行：选择要对比的两块肌肉 ---------- #
-        row3 = ttk.LabelFrame(outer, text="Compare", padding=6)
+        # ---------- 第 3 行：实时比较 APDF 的 median 水平（P50）---------- #
+        # 对比对象由配置决定（当前 UT vs ECU），界面**不给选择** —— 选错对象
+        # 会让整段会话作废，而且从数据文件上很难发现。
+        row3 = ttk.LabelFrame(
+            outer, text="Compare — APDF median level (P50), live", padding=6)
         row3.pack(fill=X, pady=(8, 0))
         grid = ttk.Frame(row3)
         grid.pack(fill=X)
         self.pair_a_var = StringVar()
-        self.pair_a_combo = ttk.Combobox(grid, textvariable=self.pair_a_var,
-                                        width=9, state="readonly")
-        self.pair_a_combo.grid(row=0, column=0)
-        ttk.Label(grid, text="vs").grid(row=0, column=1, padx=10)
         self.pair_b_var = StringVar()
-        self.pair_b_combo = ttk.Combobox(grid, textvariable=self.pair_b_var,
-                                        width=9, state="readonly")
-        self.pair_b_combo.grid(row=0, column=2)
-        for combo in (self.pair_a_combo, self.pair_b_combo):
-            combo.bind("<<ComboboxSelected>>",
-                       lambda _e: self._sync_pair_colors())
-        # 各自的实时值直接落在对应下拉框下方（不用读文字就知道谁高）
+        self.name_a_label = ttk.Label(grid, textvariable=self.pair_a_var,
+                                      font=("Consolas", 12, "bold"))
+        self.name_a_label.grid(row=0, column=0)
+        ttk.Label(grid, text="vs", font=("", 11)).grid(row=0, column=1, padx=14)
+        self.name_b_label = ttk.Label(grid, textvariable=self.pair_b_var,
+                                      font=("Consolas", 12, "bold"))
+        self.name_b_label.grid(row=0, column=2)
+        ttk.Label(grid, text="P50 (%MVC)", foreground="#666").grid(
+            row=1, column=1, padx=14)
         self.val_a_var = StringVar(value="—")
         self.val_b_var = StringVar(value="—")
         self.val_a_label = ttk.Label(grid, textvariable=self.val_a_var,
-                                     font=("Consolas", 13, "bold"),
+                                     font=("Consolas", 16, "bold"),
                                      foreground=MUSCLE_COLORS[0])
-        self.val_a_label.grid(row=1, column=0, pady=(2, 0))
+        self.val_a_label.grid(row=1, column=0)
         self.val_b_label = ttk.Label(grid, textvariable=self.val_b_var,
-                                     font=("Consolas", 13, "bold"),
+                                     font=("Consolas", 16, "bold"),
                                      foreground=MUSCLE_COLORS[1])
-        self.val_b_label.grid(row=1, column=2, pady=(2, 0))
-        # 只显示两块肌肉的实时值 —— 谁高谁低一眼就看得出，不再写结论文字
+        self.val_b_label.grid(row=1, column=2)
+        # 差值 + 谁更高：这就是判定量本身，不写任何结论性文字
+        self.delta_var = StringVar(value="Δ = —")
+        ttk.Label(grid, textvariable=self.delta_var,
+                  font=("Consolas", 10)).grid(
+            row=2, column=0, columnspan=3, pady=(4, 0), sticky="w")
         self.adv_btn = ttk.Button(row2, text="Advanced ▸", width=12,
                                   command=self._toggle_advanced)
         self.adv_btn.pack(side=RIGHT)
@@ -548,11 +553,14 @@ class UnifiedGuiApp:
             self._mvc_vars[muscle] = var
 
     def _rebuild_pair_boxes(self) -> None:
-        """重建"对比"下拉框（选项 = 通道映射里的肌肉）。"""
+        """把"对比"两块肌肉固定为配置里的 ``pair``（当前 UT vs ECU）。
+
+        界面不提供选择：对比对象是实验设计的一部分，不是运行时的选项。
+        要改就改配置（``session_config_*.json`` 的 ``pair``），并会让锁定
+        该设定的测试一起失败。
+        """
         muscles = self._muscles()
-        for combo in (self.pair_a_combo, self.pair_b_combo):
-            combo["values"] = muscles
-        a, b = (self.cfg.pair + ["", ""])[:2]
+        a, b = (list(self.cfg.pair) + ["", ""])[:2]
         if a not in muscles:
             a = muscles[0] if muscles else ""
         if b not in muscles or b == a:
@@ -562,7 +570,7 @@ class UnifiedGuiApp:
         self._sync_pair_colors()
 
     def _sync_pair_colors(self) -> None:
-        """让下方两个数值的颜色跟图上那两条曲线一致。"""
+        """让两个数值的颜色跟图上那两条曲线一致。"""
         muscles = self._muscles()
         for var, label in ((self.pair_a_var, self.val_a_label),
                            (self.pair_b_var, self.val_b_label)):
@@ -874,15 +882,27 @@ class UnifiedGuiApp:
             self.status_var.set(
                 f"Running {s.elapsed:.0f}s | switches {s.switches} | crossovers {s.crossings}")
 
-        # 只把两块肌肉的实时值显示到各自下拉框下方
+        # 对比行显示**判定量本身**：APDF 的 median 水平（P50），不是瞬时 %MVC。
         if len(pair) == 2 and all(pair):
             a, b = pair
-            va, vb = s.latest.get(a), s.latest.get(b)
-            self.val_a_var.set("—" if va is None or not np.isfinite(va) else f"{va:.1f}")
-            self.val_b_var.set("—" if vb is None or not np.isfinite(vb) else f"{vb:.1f}")
+            rows = {r.muscle: r for r in s.apdf}
+            ra, rb = rows.get(a), rows.get(b)
+            va = ra.median_pct if ra is not None else None
+            vb = rb.median_pct if rb is not None else None
+            self.val_a_var.set(
+                "—" if va is None or not np.isfinite(va) else f"{va:.1f}")
+            self.val_b_var.set(
+                "—" if vb is None or not np.isfinite(vb) else f"{vb:.1f}")
+            if va is not None and vb is not None and np.isfinite(va) and np.isfinite(vb):
+                d = float(va - vb)
+                who = (f"{a} 更高" if d > 0 else f"{b} 更高") if abs(d) >= 0.05 else "两者相同"
+                self.delta_var.set(f"Δ ({a} − {b}) = {d:+.1f} %MVC    {who}")
+            else:
+                self.delta_var.set(f"Δ ({a} − {b}) = —")
         else:
             self.val_a_var.set("—")
             self.val_b_var.set("—")
+            self.delta_var.set("Δ = —")
 
         if s.apdf and (force or self._tick % 5 == 0):
             for item in self.apdf_tree.get_children():

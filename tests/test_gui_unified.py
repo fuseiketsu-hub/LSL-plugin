@@ -172,20 +172,21 @@ class TestUnifiedGui(unittest.TestCase):
         self.assertTrue(app._read_form())
         self.assertEqual(cfg.pair, ["FDS", "UT"])
 
-    def test_pair_combos_list_all_muscles_and_default_from_config(self):
+    def test_pair_is_fixed_from_config_with_no_chooser(self):
+        """对比对象由配置固定（当前 UT vs ECU），界面不再提供选择。
+
+        选择器本身就是个风险：选错肌肉会让整段会话作废，而且从数据文件上
+        看不出来。所以要改对比对象只能改配置，并由锁定配置的测试拦住。
+        """
         from lsl_apdf.gui_unified import UnifiedGuiApp
 
         cfg = self._cfg()
-        cfg.pair = ["ECU", "FDS"]
+        cfg.pair = ["UT", "ECU"]
         app = UnifiedGuiApp(self.root, cfg)
-        self.assertEqual(list(app.pair_a_combo["values"]),
-                         ["ECU", "FDS", "UT", "EDC"])
-        self.assertEqual(app.pair_a_var.get(), "ECU")
-        self.assertEqual(app.pair_b_var.get(), "FDS")
-        # A 与 B 不会相同
-        app.pair_a_var.set("ECU")
-        app._rebuild_pair_boxes()
-        self.assertNotEqual(app.pair_a_var.get(), app.pair_b_var.get())
+        self.assertFalse(hasattr(app, "pair_a_combo"))   # 没有下拉框了
+        self.assertFalse(hasattr(app, "pair_b_combo"))
+        self.assertEqual(app.pair_a_var.get(), "UT")
+        self.assertEqual(app.pair_b_var.get(), "ECU")
 
     def test_pair_rebuilds_when_mapping_changes(self):
         from lsl_apdf.gui_unified import UnifiedGuiApp
@@ -194,7 +195,7 @@ class TestUnifiedGui(unittest.TestCase):
         app = UnifiedGuiApp(self.root, cfg)
         app.ch_var.set("1=FDS,2=UT")
         app._apply_mapping()
-        self.assertEqual(list(app.pair_a_combo["values"]), ["FDS", "UT"])
+        # 配置里的 pair 是 UT/ECU，新映射里没有 ECU → 必须落到映射内且不相同
         self.assertIn(app.pair_a_var.get(), ["FDS", "UT"])
         self.assertIn(app.pair_b_var.get(), ["FDS", "UT"])
         self.assertNotEqual(app.pair_a_var.get(), app.pair_b_var.get())
