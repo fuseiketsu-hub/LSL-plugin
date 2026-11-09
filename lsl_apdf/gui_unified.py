@@ -457,8 +457,9 @@ class UnifiedGuiApp:
         #   X = 幅值（%MVC），Y = 概率 P（幅值不超过该水平的时间比例，0→1）
         # 曲线因此从**左下升到右上**。我先前画成"X=超概率、Y=幅值"——
         # 那是转置并取了补，方向和形状都与文献不一致。
-        self.ax_apdf.set_title("APDF（X = 幅值, Y = P = 不超过该水平的时间比例）")
-        self.ax_apdf.set_xlabel("幅值 (%MVC)")
+        self.ax_apdf.set_title(
+            "APDF  (X = amplitude %MVC, Y = P = proportion of time at or below)")
+        self.ax_apdf.set_xlabel("Amplitude (%MVC)")
         self.ax_apdf.set_ylabel("P  (proportion of time at or below the level)")
         self.ax_apdf.set_xlim(0, 80)
         self.ax_apdf.set_ylim(0.0, 1.0)
@@ -632,7 +633,7 @@ class UnifiedGuiApp:
                 is_os = meta.name == "OpenSignals"
                 if not is_os:
                     n_foreign += 1
-                prefix = "" if is_os else "⚠ 非 OpenSignals："
+                prefix = "" if is_os else "⚠ not OpenSignals: "
                 entries.append(f"{prefix}{meta.name} | {meta.type} | "
                                f"{meta.hostname} | {meta.n_channels}ch | "
                                f"{meta.nominal_srate:g}Hz")
@@ -901,7 +902,7 @@ class UnifiedGuiApp:
                 "—" if vb is None or not np.isfinite(vb) else f"{vb:.1f}")
             if va is not None and vb is not None and np.isfinite(va) and np.isfinite(vb):
                 d = float(va - vb)
-                who = (f"{a} 更高" if d > 0 else f"{b} 更高") if abs(d) >= 0.05 else "两者相同"
+                who = (f"{a} higher" if d > 0 else f"{b} higher") if abs(d) >= 0.05 else "equal"
                 self.delta_var.set(f"Δ ({a} − {b}) = {d:+.1f} %MVC    {who}")
             else:
                 self.delta_var.set(f"Δ ({a} − {b}) = —")
