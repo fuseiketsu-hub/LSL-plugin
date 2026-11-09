@@ -1367,6 +1367,8 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
         muscle_colors = ["#1f77b4", "#d62728"]
         fig = Figure(figsize=(9.2, 5.8), dpi=130, constrained_layout=True)
         ax = fig.add_subplot(1, 1, 1)
+        xmax = 0.0
+        spikes: list[str] = []
         for idx, (d, c) in enumerate(curves):
             if not c:
                 continue
@@ -1374,6 +1376,17 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
                 xy = c.get(muscle)
                 if xy is None:
                     continue
+                if xy[1].size:
+                    hi = float(np.max(xy[1]))
+                    # 超概率 0.5% 处的幅值 ≈ P99.5。**逐通道**判断：某一路的
+                    # 单个离群尖峰（电极跳变/运动伪迹）不该拉宽整张图。
+                    robust = float(np.interp(0.5, xy[0], xy[1]))
+                    if robust > 0 and hi > robust * 1.25:
+                        note = f"{muscle} max {hi:.1f} vs P99.5 {robust:.1f}"
+                        if note not in spikes:
+                            spikes.append(note)
+                        hi = robust * 1.15
+                    xmax = max(xmax, hi)
                 # 原文 Fig.6/7 的约定：X = 幅值，Y = P（不超过该水平的时间比例）。
                 # 存储是 (超概率 %, 幅值 %MVC) → 反转 + 取补 ⇒ 曲线从左下升到右上。
                 ax.plot(xy[1][::-1], 1.0 - xy[0][::-1] / 100.0,
@@ -1388,7 +1401,13 @@ def _compare_apdf_curves(info, labels, pair, out_dir: Path) -> None:
         ax.set_xlabel("幅值 (%MVC)")
         ax.set_ylabel("P  (proportion of time at or below the level)")
         ax.set_title("APDF 曲线比较（坐标约定同 Jonsson 1982 Fig.6/7）")
-        ax.set_xlim(0, 78)
+        # 下限 10 %MVC 防止极低负荷时过度放大。
+        ax.set_xlim(0, max(xmax * 1.1, 10.0))
+        if spikes:
+            print("  注意：检测到疑似伪迹（单个样本把最大值撑高），"
+                  "该通道横轴按 P99.5 截断：")
+            for s in spikes:
+                print(f"    · {s}")
         ax.set_ylim(0.0, 1.0)
         ax.grid(alpha=0.25)
         # 只保留 static (P=0.1) 一条参考线（按需求：去掉 median/peak 线与限值点）

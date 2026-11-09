@@ -469,6 +469,8 @@ class UnifiedGuiApp:
         self.ax_apdf.axhline(0.1, color="#aaaaaa", ls=":", lw=0.9, zorder=1)
         self.ax_apdf.text(0.6, 0.115, "static P10  (P=0.1)",
                           fontsize=7, color="#888888", va="bottom")
+        # 横轴上限：随数据增长（只增不减），每次会话开始时重置
+        self._apdf_xmax = 0.0
         canvas = FigureCanvasTkAgg(self.fig, master=left)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=BOTH, expand=True)
@@ -815,6 +817,10 @@ class UnifiedGuiApp:
             return
         self.engine = _Engine(self.cfg, source)
         self.engine.start()
+        # 新会话：横轴上限与曲线缓存都要重置，否则会沿用上一次的范围
+        self._apdf_xmax = 0.0
+        for ln in self._apdf_lines.values():
+            ln.set_data([], [])
         self.start_btn.configure(state="disabled")
         self.stop_btn.configure(state="normal")
         self.status_var.set("Connecting...")
@@ -944,8 +950,19 @@ class UnifiedGuiApp:
                 #   y = 1 − 超概率/100  = Jonsson 的 P
                 line.set_data(xy[1][::-1], 1.0 - xy[0][::-1] / 100.0)
             tops = [r.peak_pct for r in s.apdf if np.isfinite(r.peak_pct)]
-            # 右边界要容得下 peak 限值点(70)，否则看不到最上面那个判据
-            self.ax_apdf.set_xlim(0, max(max(tops) if tops else 10.0, 74.0) * 1.05)
+            # 横轴范围：正常数据用实测最大值；若最大值远超 P99.5（单个电极
+            # 跳变样本），改用稳健上界 —— 否则一个样本就把整条曲线压到左边。
+            # 只增不减（中途缩小会让曲线每帧跳），下限 10 %MVC。
+            if tops:
+                top = max(tops)
+                robust = 0.0
+                for m, xy in s.curves.items():
+                    if m in pair and xy[0].size:
+                        robust = max(robust, float(np.interp(0.5, xy[0], xy[1])))
+                if robust > 0 and top > robust * 1.25:
+                    top = robust
+                self._apdf_xmax = max(self._apdf_xmax, top * 1.15)
+            self.ax_apdf.set_xlim(0, max(self._apdf_xmax, 10.0))
             self.ax_apdf.set_ylim(0.0, 1.0)
             self.canvas.draw_idle()
 
