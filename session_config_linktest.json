@@ -9,8 +9,8 @@
     "EDC": 1000.0
   },
   "pair": [
-    "ECU",
-    "FDS"
+    "UT",
+    "ECU"
   ],
   "direction": {
     "ECU": "up",

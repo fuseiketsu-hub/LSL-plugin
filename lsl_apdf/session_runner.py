@@ -67,7 +67,8 @@ class IntegratedConfig:
     })
 
     # --- balance 策略（写进插件配置） ---
-    pair: list[str] = field(default_factory=lambda: ["ECU", "FDS"])
+    pair: list[str] = field(default_factory=lambda: ["UT", "ECU"])
+    """实时比较的两块肌肉。实验定为 UT（斜方肌上束）vs ECU（桡侧腕伸肌）。"""
     direction: dict[str, str] = field(default_factory=lambda: {
         "ECU": "up", "UT": "up", "FDS": "down", "EDC": "down",
     })
@@ -89,7 +90,8 @@ class IntegratedConfig:
     水平本身已是各自归一化的 %MVC，量纲相同，直接取差即可，不做任何加权合成。
     ``excess_area``：自造的"超阈值强度×时间"积分量，**论文不应使用**，仅为对照保留。"""
     level_percentile: float = 50.0
-    """用哪个百分位做比较：50=median load level（默认），10=static，90=peak。"""
+    """用哪个百分位做比较：**50 = median load level（本实验采用）**，
+    10=static，90=peak。三个水平仍全部记录与输出，只有切换决策用这一个。"""
     confirm_sec: float = 30.0
     settle_sec: float = 120.0
     safety_mvc: float = 40.0

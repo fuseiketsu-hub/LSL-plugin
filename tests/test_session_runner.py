@@ -16,6 +16,42 @@ from lsl_apdf.session_runner import (
     session_dir_for,
 )
 
+ROOT = Path(__file__).resolve().parent.parent
+
+
+class TestShippedConfigs(unittest.TestCase):
+    """锁定正式实验的设定：A=UT、B=ECU，判据 = APDF 的 median 水平（P50）。
+
+    这三条是实验设计决定，不是默认值巧合 —— 配置被改动时应当测试失败，
+    而不是悄悄跑到别的肌肉/别的水平上去。
+    """
+
+    def test_all_shipped_configs_use_ut_vs_ecu_at_p50(self):
+        for name in ("session_config_real.json",
+                     "session_config_example.json",
+                     "session_config_linktest.json"):
+            with self.subTest(config=name):
+                cfg = IntegratedConfig.load(ROOT / name)
+                self.assertEqual(cfg.pair, ["UT", "ECU"])
+                self.assertEqual(cfg.metric, "apdf_level")
+                self.assertAlmostEqual(cfg.level_percentile, 50.0)
+                self.assertEqual(check_contract(cfg), [])
+
+    def test_code_defaults_match_the_experiment(self):
+        cfg = IntegratedConfig()
+        self.assertEqual(cfg.pair, ["UT", "ECU"])
+        self.assertEqual(cfg.metric, "apdf_level")
+        self.assertAlmostEqual(cfg.level_percentile, 50.0)
+
+    def test_plugin_config_carries_the_pair_and_level(self):
+        cfg = IntegratedConfig.load(ROOT / "session_config_real.json")
+        built = build_plugin_config(cfg, ROOT / "sessions" / "_cfgcheck")
+        balance = built["emg"]["balance"]
+        self.assertEqual(balance["pair"], ["UT", "ECU"])
+        self.assertEqual(balance["metric"], "apdf_level")
+        self.assertAlmostEqual(float(balance["level_percentile"]), 50.0)
+
+
 
 class TestContract(unittest.TestCase):
     """契约检查要能把"静默什么都不做"变成"启动就报错"。"""
@@ -31,12 +67,22 @@ class TestContract(unittest.TestCase):
         self.assertTrue(any("direction mapping" in p for p in problems), problems)
 
     def test_missing_mvc_for_pair(self):
-        cfg = IntegratedConfig(mvc={"ECU": 80.0, "UT": 83.0, "EDC": 59.0})
+        # 用 ECU/FDS 这对（与默认 UT/ECU 无关），专门测"pair 里的肌肉缺 MVC"这条检查
+        cfg = IntegratedConfig(pair=["ECU", "FDS"],
+                              mvc={"ECU": 80.0, "UT": 83.0, "EDC": 59.0})
         problems = check_contract(cfg)
         self.assertTrue(any("Missing MVC baseline for FDS" in p for p in problems), problems)
 
+    def test_missing_mvc_for_default_pair(self):
+        """默认 pair（UT/ECU）缺 MVC 时也必须报出来。"""
+        cfg = IntegratedConfig(mvc={"FDS": 57.0, "EDC": 59.0})
+        problems = check_contract(cfg)
+        self.assertTrue(any("Missing MVC baseline for UT" in p for p in problems), problems)
+        self.assertTrue(any("Missing MVC baseline for ECU" in p for p in problems), problems)
+
     def test_zero_or_negative_mvc(self):
-        cfg = IntegratedConfig(mvc={"ECU": 80.0, "FDS": 0.0,
+        # pair 里的肌肉 MVC=0 必须报错（默认 pair 是 UT/ECU）
+        cfg = IntegratedConfig(mvc={"ECU": 0.0, "FDS": 57.0,
                                     "UT": 83.0, "EDC": 59.0})
         self.assertTrue(any("must be positive" in p for p in check_contract(cfg)))
 
@@ -108,7 +154,7 @@ class TestPluginConfigGeneration(unittest.TestCase):
             self.assertEqual(built["emg"]["policy"], "balance")
             self.assertEqual(built["emg"]["port"], 9123)
             self.assertTrue(built["rawaccel"]["dry_run"])
-            self.assertEqual(built["emg"]["balance"]["pair"], ["ECU", "FDS"])
+            self.assertEqual(built["emg"]["balance"]["pair"], cfg.pair)
             self.assertEqual(float(built["emg"]["switch_ramp_sec"]), 300.0)
             self.assertEqual(built["log_dir"], str(session_dir.resolve()))
             self.assertEqual(built["time_scale"], 1.0)
@@ -133,7 +179,7 @@ class TestPluginConfigGeneration(unittest.TestCase):
             cfg = IntegratedConfig(plugin_dir=str(Path(tmp) / "empty"))
             built = build_plugin_config(cfg, session_dir)
             self.assertEqual(built["emg"]["policy"], "balance")
-            self.assertEqual(built["emg"]["balance"]["pair"], ["ECU", "FDS"])
+            self.assertEqual(built["emg"]["balance"]["pair"], cfg.pair)
 
     def test_generated_config_is_json_serializable(self):
         with tempfile.TemporaryDirectory() as tmp:

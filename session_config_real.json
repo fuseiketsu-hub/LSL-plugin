@@ -1,12 +1,14 @@
 {
-  "_说明": "正式实验配置：每 15 分钟比较一次（比较窗/基线/比较间隔均 900 s）+ compare=absolute（直接比较原始高暴露面积，不做基线倍数归一）。MVC 请按你实测计算出的数值在统一界面输入框里填入（界面会覆盖这里的初值）。dry_run 只是默认值，真正写鼠标需在界面勾选「★ 真实写 Raw Accel」并确认。",
+  "_说明": "正式实验配置：对比对象 = UT（斜方肌上束）vs ECU（桡侧腕伸肌），判据 = APDF 的 median 水平（P50，即 P=0.5）做实时比较。比较窗/基线/比较间隔均 900 s，确认 30 s，切换渐变 300 s。MVC 请按你实测计算出的数值在统一界面输入框里填入（界面会覆盖这里的初值）。dry_run 只是默认值，真正写鼠标需在界面勾选「★ 真实写 Raw Accel」并确认。三个 APDF 水平仍全部记录与输出（static P10 / median P50 / peak P90），只是**切换决策只看 P50**。",
 
   "plugin_dir": "plugin",
 
   "channels": "A1=ECU,A2=FDS,A3=UT,A4=EDC",
   "mvc": {"ECU": 80.0, "FDS": 57.0, "UT": 83.0, "EDC": 59.0},
 
-  "pair": ["ECU", "FDS"],
+  "pair": ["UT", "ECU"],
+  "metric": "apdf_level",
+  "level_percentile": 50.0,
   "direction": {"ECU": "up", "UT": "up", "FDS": "down", "EDC": "down"},
   "high_thr": 20.0,
   "roll_window_sec": 900.0,

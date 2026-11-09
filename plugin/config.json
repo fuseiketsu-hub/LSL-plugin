@@ -61,8 +61,10 @@
     },
 
     "balance": {
-      "_comment": "负荷交替法（v2）：比较两块肌肉各自的高暴露区域，谁相对自己基线更严重就把 DPI 往卸载它的方向切。切换次数不预设，由两者的交替结果决定。",
-      "pair": ["ECU", "FDS"],
+      "_comment": "负荷交替法（v2）：比较 UT（斜方肌上束）与 ECU（桡侧腕伸肌）在 APDF **median 水平（P50）** 上的相对负荷，谁相对自己基线更严重就把 DPI 往卸载它的方向切。切换次数不预设，由两者的交替结果决定。",
+      "pair": ["UT", "ECU"],
+      "metric": "apdf_level",
+      "level_percentile": 50.0,
       "direction": {"ECU": "up", "UT": "up", "FDS": "down", "EDC": "down"},
       "high_thr": 20.0,
       "roll_window_sec": 300.0,
